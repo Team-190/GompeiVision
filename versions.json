@@ -1,0 +1,162 @@
+{
+  "opencv": {
+    "version": "4.11.0",
+    "url_template": "https://github.com/opencv/opencv/archive/refs/tags/{version}.zip",
+    "fetch_name": "opencv_src_content",
+    "components": [
+      "core",
+      "imgproc",
+      "highgui",
+      "videoio",
+      "dnn"
+    ]
+  },
+  "wpi_libs": {
+    "version": "2025.1.1",
+    "base_maven_url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first",
+    "components": {
+      "wpiutil": {
+        "artifact_id": "wpiutil-cpp",
+        "group_id_path": "wpiutil",
+        "binary_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-{classifier}.zip",
+        "headers_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-headers.zip",
+        "fetch_name_template": "wpiutil_{arch}_bin_{type}",
+        "headers_fetch_name": "wpiutil_headers"
+      },
+      "ntcore": {
+        "artifact_id": "ntcore-cpp",
+        "group_id_path": "ntcore",
+        "binary_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-{classifier}.zip",
+        "headers_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-headers.zip",
+        "fetch_name_template": "ntcore_{arch}_bin_{type}",
+        "headers_fetch_name": "ntcore_headers"
+      },
+      "cscore": {
+        "artifact_id": "cscore-cpp",
+        "group_id_path": "cscore",
+        "binary_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-{classifier}.zip",
+        "headers_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-headers.zip",
+        "fetch_name_template": "cscore_{arch}_bin_{type}",
+        "headers_fetch_name": "cscore_headers"
+      },
+      "wpimath": {
+        "artifact_id": "wpimath-cpp",
+        "group_id_path": "wpimath",
+        "binary_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-{classifier}.zip",
+        "headers_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-headers.zip",
+        "fetch_name_template": "wpimath_{arch}_bin_{type}",
+        "headers_fetch_name": "wpimath_headers"
+      },
+      "wpinet": {
+        "artifact_id": "wpinet-cpp",
+        "group_id_path": "wpinet",
+        "binary_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-{classifier}.zip",
+        "headers_url_template": "{base_maven_url}/{group_id_path}/{artifact_id}/{version}/{artifact_id}-{version}-headers.zip",
+        "fetch_name_template": "wpinet_{arch}_bin_{type}",
+        "headers_fetch_name": "wpinet_headers"
+      }
+    }
+  },
+  "hashes": {
+    "wpiutil_x86_64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpiutil/wpiutil-cpp/2025.1.1/wpiutil-cpp-2025.1.1-linuxx86-64.zip",
+      "hash": "9249b62329cbb0391993e5b73eec5b66b9c0fd4e5beb30bbd1aee93b7b5ea0eb"
+    },
+    "wpiutil_x86_64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpiutil/wpiutil-cpp/2025.1.1/wpiutil-cpp-2025.1.1-linuxx86-64debug.zip",
+      "hash": "c51151319fffd9dd1e3dfb5a41c02905052dcc879fc602f018978abbe2e9e789"
+    },
+    "wpiutil_arm64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpiutil/wpiutil-cpp/2025.1.1/wpiutil-cpp-2025.1.1-linuxarm64.zip",
+      "hash": "6f46d2d964bef4bd28fc88091461520a07376d771a97612c0a00bee89f69b0fa"
+    },
+    "wpiutil_arm64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpiutil/wpiutil-cpp/2025.1.1/wpiutil-cpp-2025.1.1-linuxarm64debug.zip",
+      "hash": "7c7bda5c04418cb5997cc4dededb0af3b172d1c7255a4d9186e85c5960d3a5a7"
+    },
+    "wpiutil_headers": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpiutil/wpiutil-cpp/2025.1.1/wpiutil-cpp-2025.1.1-headers.zip",
+      "hash": "075659b9d2222755babe9d37ed042273d866828a21caf1855fa5c5f2a9ce298a"
+    },
+    "ntcore_x86_64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/ntcore/ntcore-cpp/2025.1.1/ntcore-cpp-2025.1.1-linuxx86-64.zip",
+      "hash": "ab2addc05defdda0e3c6648bd97e3aa2fcf8b39a0859337b6dbe2af5c5f57606"
+    },
+    "ntcore_x86_64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/ntcore/ntcore-cpp/2025.1.1/ntcore-cpp-2025.1.1-linuxx86-64debug.zip",
+      "hash": "2f51c9d011fd64dea92a848da26bc7b68278de0d66ca1179d25f1b664cfb46d5"
+    },
+    "ntcore_arm64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/ntcore/ntcore-cpp/2025.1.1/ntcore-cpp-2025.1.1-linuxarm64.zip",
+      "hash": "307ec34373c83482f496b78030a4bbdb2fa278ee46cfdf4c73a465da0856c472"
+    },
+    "ntcore_arm64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/ntcore/ntcore-cpp/2025.1.1/ntcore-cpp-2025.1.1-linuxarm64debug.zip",
+      "hash": "036bfc10efd7ea682d77a2a0333937261e37d0f5b8e19fc3f62b7125742f8a03"
+    },
+    "ntcore_headers": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/ntcore/ntcore-cpp/2025.1.1/ntcore-cpp-2025.1.1-headers.zip",
+      "hash": "a495110b703f28bf28d686cedb0c7a9b65c19a3f4a735ffaa946fd7dc91cccf6"
+    },
+    "cscore_x86_64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/cscore/cscore-cpp/2025.1.1/cscore-cpp-2025.1.1-linuxx86-64.zip",
+      "hash": "7bc3515b9c8a15f840c388bd48d696c68834d0a7f2e351833fda5a79f6061ec6"
+    },
+    "cscore_x86_64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/cscore/cscore-cpp/2025.1.1/cscore-cpp-2025.1.1-linuxx86-64debug.zip",
+      "hash": "a5d6e8df88c2ebdfdffb2e99fe5a680157c2513685bce33f67673b6342562e71"
+    },
+    "cscore_arm64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/cscore/cscore-cpp/2025.1.1/cscore-cpp-2025.1.1-linuxarm64.zip",
+      "hash": "911556b823055f40abea2f81fe3461d6a937d2c762e4ad7821af8dca3425c761"
+    },
+    "cscore_arm64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/cscore/cscore-cpp/2025.1.1/cscore-cpp-2025.1.1-linuxarm64debug.zip",
+      "hash": "8f926c199cd8f734b673699fa27ad79721b36c247ce50f9e2162ce906f120f78"
+    },
+    "cscore_headers": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/cscore/cscore-cpp/2025.1.1/cscore-cpp-2025.1.1-headers.zip",
+      "hash": "92355911ab618974d7cfcf5567e121a68ae376c5c7ce44953a6ac76a12539db6"
+    },
+    "wpimath_x86_64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxx86-64.zip",
+      "hash": "9922482772e0bf8c7aedbaa4e69b1c73c67566aa75d002b237ecf7a0c44e58d8"
+    },
+    "wpimath_x86_64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxx86-64debug.zip",
+      "hash": "349ed2a162e90b01cf08e33a7cfb97442b49e1a00ed0335ae7d0ad7ee9053056"
+    },
+    "wpimath_arm64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64.zip",
+      "hash": "d5995c0772839cf1cab4b7dbd3eeeb3e4f1b9c12139922de05a5082b425d5155"
+    },
+    "wpimath_arm64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64debug.zip",
+      "hash": "091aca3ab2c8bd0d8055890c4b4d6bf412544d400d4148c21eea004a225a4801"
+    },
+    "wpimath_headers": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-headers.zip",
+      "hash": "47364e6e2253c3408b22355d85a7979dfd0a70376f963ef561d7ca346d01a068"
+    },
+    "wpinet_x86_64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpinet/wpinet-cpp/2025.1.1/wpinet-cpp-2025.1.1-linuxx86-64.zip",
+      "hash": "17dfa5a8fa799257ed2eeeb7c20e0a9b227c9b5a4ac9bb90e4981c429af01174"
+    },
+    "wpinet_x86_64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpinet/wpinet-cpp/2025.1.1/wpinet-cpp-2025.1.1-linuxx86-64debug.zip",
+      "hash": "ba0378729eda3034f61fbc1f9bc45b2ddfefccb3f1c73a6156446065b494d8a8"
+    },
+    "wpinet_arm64_bin_release": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpinet/wpinet-cpp/2025.1.1/wpinet-cpp-2025.1.1-linuxarm64.zip",
+      "hash": "426344e171b9b83eb3a011806f90a9361c2aefe6a8a3707d92ea4e3d3cd66e63"
+    },
+    "wpinet_arm64_bin_debug": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpinet/wpinet-cpp/2025.1.1/wpinet-cpp-2025.1.1-linuxarm64debug.zip",
+      "hash": "3da95fc546fb4532388434932c5f6df5b5e146b65516c1ed81288df082a0ea9e"
+    },
+    "wpinet_headers": {
+      "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpinet/wpinet-cpp/2025.1.1/wpinet-cpp-2025.1.1-headers.zip",
+      "hash": "882d405f0f54fec96fd1e47963183335fb6414c3fb208115c795a8c333490742"
+    }
+  }
+}
