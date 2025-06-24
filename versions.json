@@ -1,16 +1,4 @@
 {
-  "opencv": {
-    "version": "4.11.0",
-    "url_template": "https://github.com/opencv/opencv/archive/refs/tags/{version}.zip",
-    "fetch_name": "opencv_src_content",
-    "components": [
-      "core",
-      "imgproc",
-      "highgui",
-      "videoio",
-      "dnn"
-    ]
-  },
   "wpi_libs": {
     "version": "2025.1.1",
     "base_maven_url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first",
