@@ -23,8 +23,11 @@ jobs:
         with:
           vcpkgDirectory: '${{ github.workspace }}/vcpkg'
           vcpkgJsonGlob: '**/vcpkg.json'
-          vcpkgTriplet: '${{ matrix.arch }}'
           vcpkgGitCommitId: 'latest'
+
+      - name: Install dependencies for matrix triplet
+        run: |
+          ./vcpkg/vcpkg install --triplet ${{ matrix.arch }}
 
       - name: Configure and build with CMake
         run: |
