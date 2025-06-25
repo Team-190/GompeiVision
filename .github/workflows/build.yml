@@ -37,7 +37,7 @@ jobs:
           docker rm $container_id
 
       - name: Upload build artifact for ${{ matrix.arch }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gompeivision-build-${{ matrix.arch }}
           path: build_output/${{ matrix.arch }}/build
