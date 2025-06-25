@@ -1,34 +1,36 @@
-name: Build GompeiVision
+name: Build
 
 on:
   push:
+    branches: [ main ]
   pull_request:
 
 jobs:
   build-x86:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Build for x86_64
-        run: |
-          docker build --build-arg TARGET_ARCH=amd64 -t gompeivision:x86_64 .
-          docker run --rm gompeivision:x86_64 cp /workspace/build/gompeivision /workspace/gompeivision-x86_64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v3
+      - name: Build x86
+        uses: docker/build-push-action@v4
         with:
-          name: gompeivision-x86_64
-          path: gompeivision-x86_64
+          context: .
+          file: Dockerfile.x86
+          push: false
+          tags: gompeivision:x86
 
   build-arm64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Build for arm64
-        run: |
-          docker build --build-arg TARGET_ARCH=arm64 -t gompeivision:arm64 .
-          docker run --rm gompeivision:arm64 cp /workspace/build/gompeivision /workspace/gompeivision-arm64
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v3
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build arm64
+        uses: docker/build-push-action@v4
         with:
-          name: gompeivision-arm64
-          path: gompeivision-arm64
+          context: .
+          file: Dockerfile.arm64
+          platform: linux/arm64
+          push: false
+          tags: gompeivision:arm64

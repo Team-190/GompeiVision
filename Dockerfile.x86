@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+# Install dependencies (curl, git, cmake, ninja-build, etc.)
+RUN apt-get update && apt-get install -y \
+    curl git build-essential cmake ninja-build
+
+# Install vcpkg
+RUN git clone https://github.com/microsoft/vcpkg.git /vcpkg
+RUN /vcpkg/bootstrap-vcpkg.sh
+
+WORKDIR /workspace
+
+COPY . /workspace
+
+RUN /vcpkg/vcpkg install --triplet x64-linux
+
+RUN cmake -S /workspace -B /workspace/build -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
+    -DVCPKG_TARGET_TRIPLET=x64-linux \
+    -DCMAKE_BUILD_TYPE=Release
+
+RUN cmake --build /workspace/build -- -j$(nproc)
