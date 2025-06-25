@@ -28,7 +28,7 @@ jobs:
         run: |
           docker build --build-arg TARGET_ARCH=arm64 -t gompeivision:arm64 .
           docker run --rm gompeivision:arm64 cp /workspace/build/gompeivision /workspace/gompeivision-arm64
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: gompeivision-arm64
           path: gompeivision-arm64
