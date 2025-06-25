@@ -31,15 +31,13 @@ ARG TARGET_ARCH=amd64
 
 # Map TARGET_ARCH to vcpkg triplet
 RUN if [ "$TARGET_ARCH" = "amd64" ]; then \
-      export TRIPLET=x64-linux; \
+      TRIPLET=x64-linux; \
     elif [ "$TARGET_ARCH" = "arm64" ]; then \
-      export TRIPLET=arm64-linux; \
+      TRIPLET=arm64-linux; \
     else \
       echo "Unknown arch: $TARGET_ARCH"; exit 1; \
     fi && \
-    # Install dependencies with vcpkg
     /vcpkg/vcpkg install --triplet $TRIPLET && \
-    # Configure and build your project with CMake using vcpkg toolchain
     cmake -S /workspace -B /workspace/build -G Ninja \
       -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
       -DVCPKG_TARGET_TRIPLET=$TRIPLET \
