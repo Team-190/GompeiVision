@@ -1,22 +1,111 @@
 FROM arm64v8/ubuntu:22.04
 
-# Install dependencies (curl, git, cmake, ninja-build, etc.)
-RUN apt-get update && apt-get install -y \
-    curl git build-essential cmake ninja-build
+# Install required packages for vcpkg and building
 
-# Install vcpkg
+ENV TZ=Etc/UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Install curl and tar dependencies
+RUN apt-get update && apt-get install -y curl tar
+
+# Install CMake manually
+ENV CMAKE_VERSION=3.29.2
+RUN curl -LO https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz && \
+    tar --strip-components=1 -xzvf cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz -C /usr/local && \
+    rm cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz
+
+# (Optional) Confirm version
+RUN cmake --version
+
+
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata
+
+# Install CMake 3.29.2 (or latest) manually
+RUN curl -LO https://github.com/Kitware/CMake/releases/download/v3.29.2/cmake-3.29.2-linux-x86_64.tar.gz && \
+    tar -xzvf cmake-3.29.2-linux-x86_64.tar.gz --strip-components=1 -C /usr/local && \
+    rm cmake-3.29.2-linux-x86_64.tar.gz
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    cmake \
+    ninja-build \
+    pkg-config \
+    unzip \
+    tar \
+    ca-certificates \
+    libssl-dev \
+    python3 \
+    zip \
+    bison \
+    libx11-dev \
+    libxft-dev \
+    libxext-dev \
+    autoconf \
+    automake \
+    autoconf-archive \
+    libx11-dev \
+    libgles2-mesa-dev \
+    git \
+    zip \
+    unzip \
+    tar \
+    cmake \
+    ninja-build \
+    build-essential \
+    libxinerama-dev \
+    libxcursor-dev \
+    xorg-dev \
+    libglu1-mesa-dev \
+    pkg-config \
+    bison \
+    meson \
+    libx11-dev \
+    libxft-dev \
+    libxext-dev \
+    autoconf \
+    automake \
+    libtool \
+    m4 \
+    pkg-config \
+    autoconf-archive \
+    libtool \
+    libxi-dev \
+    libxtst-dev \
+    nasm \
+    linux-libc-dev \
+    libxml2 \
+    libxml2-dev \
+    gfortran \
+    libsystemd-dev \
+    python3-jinja2 \
+    python3-dev \
+    openjdk-8-jdk \
+    liblist-moreutils-perl \
+    libsuitesparse-dev \
+    zenity \
+    libltdl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone vcpkg and bootstrap
 RUN git clone https://github.com/microsoft/vcpkg.git /vcpkg
 RUN /vcpkg/bootstrap-vcpkg.sh
 
 WORKDIR /workspace
 
+# Copy your project files after bootstrapping vcpkg
 COPY . /workspace
 
-RUN /vcpkg/vcpkg install --triplet arm64-linux
+# Install dependencies with vcpkg
+RUN /vcpkg/vcpkg install --triplet x64-linux --clean-after-build || \
+    (echo "VCPKG install failed"; tail -n 50 /vcpkg/buildtrees/*/build-x64-linux-*.log; exit 1)
 
+RUN cat /workspace/vcpkg/buildtrees/libxcrypt/autoconf-x64-linux-err.log
+
+# Configure and build the project
 RUN cmake -S /workspace -B /workspace/build -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
-    -DVCPKG_TARGET_TRIPLET=arm64-linux \
+    -DVCPKG_TARGET_TRIPLET=x64-linux \
     -DCMAKE_BUILD_TYPE=Release
 
 RUN cmake --build /workspace/build -- -j$(nproc)

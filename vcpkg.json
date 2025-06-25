@@ -3,7 +3,10 @@
   "version-string": "0.1.0",
   "description": "Custom FRC vision system using OpenCV and AprilTag.",
   "dependencies": [
-    "opencv4",
+    {
+      "name": "opencv4",
+      "default-features": false
+    },
     "apriltag"
   ]
 }
