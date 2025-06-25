@@ -1,19 +1,32 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
-# Install dependencies (curl, git, cmake, ninja-build, etc.)
-RUN apt-get update && apt-get install -y \
-    curl git build-essential cmake ninja-build
+# Install required packages for vcpkg and building
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    cmake \
+    ninja-build \
+    pkg-config \
+    unzip \
+    tar \
+    ca-certificates \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install vcpkg
+# Clone vcpkg and bootstrap
 RUN git clone https://github.com/microsoft/vcpkg.git /vcpkg
 RUN /vcpkg/bootstrap-vcpkg.sh
 
 WORKDIR /workspace
 
+# Copy your project files after bootstrapping vcpkg
 COPY . /workspace
 
-RUN /vcpkg/vcpkg install --triplet x64-linux
+# Install dependencies with vcpkg
+RUN /vcpkg/vcpkg install --triplet x64-linux --clean-after-build --verbose
 
+# Configure and build the project
 RUN cmake -S /workspace -B /workspace/build -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
     -DVCPKG_TARGET_TRIPLET=x64-linux \
