@@ -1,32 +1,49 @@
-ARG TARGET_ARCH=amd64
+# Use an Ubuntu base image
 FROM ubuntu:24.04
 
+# Install essential packages
 RUN apt-get update && apt-get install -y \
-    build-essential ninja-build cmake curl git unzip zip tar pkg-config python3 python3-pip \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    curl \
+    unzip \
+    ca-certificates \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
+# Set working directory inside the container
 WORKDIR /workspace
 
+# Copy your entire repo into the container (adjust as needed)
 COPY . /workspace
 
-RUN git clone https://github.com/microsoft/vcpkg.git /vcpkg && \
-    /vcpkg/bootstrap-vcpkg.sh
+# Download and bootstrap vcpkg if not already present
+RUN if [ ! -d /vcpkg ]; then \
+      git clone https://github.com/microsoft/vcpkg.git /vcpkg && \
+      /vcpkg/bootstrap-vcpkg.sh; \
+    fi
 
-ENV PATH="/vcpkg:${PATH}"
+# Build argument to specify target architecture
+ARG TARGET_ARCH=amd64
 
-# Map Docker TARGET_ARCH to vcpkg triplet (simple example)
+# Map TARGET_ARCH to vcpkg triplet
 RUN if [ "$TARGET_ARCH" = "amd64" ]; then \
       export TRIPLET=x64-linux; \
     elif [ "$TARGET_ARCH" = "arm64" ]; then \
       export TRIPLET=arm64-linux; \
     else \
-      echo "Unknown arch"; exit 1; \
+      echo "Unknown arch: $TARGET_ARCH"; exit 1; \
     fi && \
+    # Install dependencies with vcpkg
     /vcpkg/vcpkg install --triplet $TRIPLET && \
+    # Configure and build your project with CMake using vcpkg toolchain
     cmake -S /workspace -B /workspace/build -G Ninja \
       -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
       -DVCPKG_TARGET_TRIPLET=$TRIPLET \
       -DCMAKE_BUILD_TYPE=Release && \
     cmake --build /workspace/build -- -j$(nproc)
 
-CMD ["ls", "-lh", "/workspace/build"]
+# The built binary will be inside /workspace/build/

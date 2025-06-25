@@ -1,43 +1,34 @@
-name: Build
+name: Build GompeiVision
 
 on:
   push:
   pull_request:
 
 jobs:
-  build:
+  build-x86:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        arch: [amd64, arm64]
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image for ${{ matrix.arch }}
+      - name: Build for x86_64
         run: |
-          docker buildx build \
-            --platform linux/${{ matrix.arch }} \
-            --build-arg TARGET_ARCH=${{ matrix.arch }} \
-            -t gompeivision-build:${{ matrix.arch }} \
-            --load .
-
-      - name: Create output directory
-        run: mkdir -p build_output
-
-      - name: Run build container and copy binary out
-        run: |
-          container_id=$(docker create gompeivision-build:${{ matrix.arch }})
-          docker start -a $container_id
-          docker cp $container_id:/workspace/build ./build_output/${{ matrix.arch }}
-          docker rm $container_id
-
-      - name: Upload build artifact for ${{ matrix.arch }}
-        uses: actions/upload-artifact@v4
+          docker build --build-arg TARGET_ARCH=amd64 -t gompeivision:x86_64 .
+          docker run --rm gompeivision:x86_64 cp /workspace/build/gompeivision /workspace/gompeivision-x86_64
+      - uses: actions/upload-artifact@v3
         with:
-          name: gompeivision-build-${{ matrix.arch }}
-          path: build_output/${{ matrix.arch }}/build
+          name: gompeivision-x86_64
+          path: gompeivision-x86_64
+
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for arm64
+        run: |
+          docker build --build-arg TARGET_ARCH=arm64 -t gompeivision:arm64 .
+          docker run --rm gompeivision:arm64 cp /workspace/build/gompeivision /workspace/gompeivision-arm64
+      - uses: actions/upload-artifact@v3
+        with:
+          name: gompeivision-arm64
+          path: gompeivision-arm64
