@@ -1,4 +1,4 @@
-name: Build with vcpkg and CMake
+name: Build
 
 on:
   push:
@@ -6,34 +6,38 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [x64-linux, arm64-linux]
+        arch: [amd64, arm64]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y ninja-build g++ gcc cmake make
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      - name: Set up vcpkg
-        uses: lukka/run-vcpkg@v11
+      - name: Build Docker image for ${{ matrix.arch }}
+        run: |
+          docker buildx build \
+            --platform linux/${{ matrix.arch }} \
+            --build-arg TARGET_ARCH=${{ matrix.arch }} \
+            -t gompeivision-build:${{ matrix.arch }} \
+            --load .
+
+      - name: Create output directory
+        run: mkdir -p build_output
+
+      - name: Run build container and copy binary out
+        run: |
+          container_id=$(docker create gompeivision-build:${{ matrix.arch }})
+          docker start -a $container_id
+          docker cp $container_id:/workspace/build ./build_output/${{ matrix.arch }}
+          docker rm $container_id
+
+      - name: Upload build artifact for ${{ matrix.arch }}
+        uses: actions/upload-artifact@v3
         with:
-          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
-          vcpkgJsonGlob: '**/vcpkg.json'
-          vcpkgGitCommitId: 'latest'
-
-      - name: Install dependencies for matrix triplet
-        run: |
-          ./vcpkg/vcpkg install --triplet ${{ matrix.arch }}
-
-      - name: Configure and build with CMake
-        run: |
-          mkdir -p build
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_C_COMPILER=/usr/bin/gcc \
-            -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -- -j$(nproc)
+          name: gompeivision-build-${{ matrix.arch }}
+          path: build_output/${{ matrix.arch }}/build
