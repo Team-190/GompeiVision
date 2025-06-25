@@ -100,8 +100,6 @@ COPY . /workspace
 RUN /vcpkg/vcpkg install --triplet x64-linux --clean-after-build || \
     (echo "VCPKG install failed"; tail -n 50 /vcpkg/buildtrees/*/build-x64-linux-*.log; exit 1)
 
-RUN cat /workspace/vcpkg/buildtrees/libxcrypt/autoconf-x64-linux-err.log
-
 # Configure and build the project
 RUN cmake -S /workspace -B /workspace/build -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=/vcpkg/scripts/buildsystems/vcpkg.cmake \
