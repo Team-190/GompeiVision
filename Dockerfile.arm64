@@ -1,4 +1,4 @@
-FROM arm64v8/ubuntu:24.04
+FROM arm64v8/ubuntu:22.04
 
 # Install dependencies (curl, git, cmake, ninja-build, etc.)
 RUN apt-get update && apt-get install -y \
