@@ -47,9 +47,9 @@ set(WPIMATH_X86_64_BIN_RELEASE_HASH "SHA256=9922482772e0bf8c7aedbaa4e69b1c73c675
 set(WPIMATH_X86_64_BIN_DEBUG_URL "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxx86-64debug.zip")
 set(WPIMATH_X86_64_BIN_DEBUG_HASH "SHA256=349ed2a162e90b01cf08e33a7cfb97442b49e1a00ed0335ae7d0ad7ee9053056")
 set(WPIMATH_ARM64_BIN_RELEASE_URL "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64.zip")
-set(WPIMATH_ARM64_BIN_RELEASE_HASH "SHA256=d5995c0772839cf1cab4b7dbd3eeeb3e4f1b9c12139922de05a5082b425d5155")
+set(WPIMATH_ARM64_BIN_RELEASE_HASH "SHA256=e69791b103003cf9392e72bcf365ed519bdea9943d80bc57521bb645f4ba52f3")
 set(WPIMATH_ARM64_BIN_DEBUG_URL "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64debug.zip")
-set(WPIMATH_ARM64_BIN_DEBUG_HASH "SHA256=091aca3ab2c8bd0d8055890c4b4d6bf412544d400d4148c21eea004a225a4801")
+set(WPIMATH_ARM64_BIN_DEBUG_HASH "SHA256=3df79f23f7fe8159620d89c34cedbcacd535d367d38662b8277375463aba165a")
 set(WPIMATH_HEADERS_URL "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-headers.zip")
 set(WPIMATH_HEADERS_HASH "SHA256=47364e6e2253c3408b22355d85a7979dfd0a70376f963ef561d7ca346d01a068")
 

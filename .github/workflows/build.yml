@@ -14,7 +14,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: Dockerfile.x86
+          file: Dockerfile.X86
           push: false
           tags: gompeivision:x86
 
@@ -30,7 +30,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: Dockerfile.arm64
+          file: Dockerfile.X86.arm64
           platform: linux/arm64
           push: false
           tags: gompeivision:arm64
