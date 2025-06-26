@@ -116,11 +116,11 @@
     },
     "wpimath_arm64_bin_release": {
       "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64.zip",
-      "hash": "d5995c0772839cf1cab4b7dbd3eeeb3e4f1b9c12139922de05a5082b425d5155"
+      "hash": "e69791b103003cf9392e72bcf365ed519bdea9943d80bc57521bb645f4ba52f3"
     },
     "wpimath_arm64_bin_debug": {
       "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-linuxarm64debug.zip",
-      "hash": "091aca3ab2c8bd0d8055890c4b4d6bf412544d400d4148c21eea004a225a4801"
+      "hash": "3df79f23f7fe8159620d89c34cedbcacd535d367d38662b8277375463aba165a"
     },
     "wpimath_headers": {
       "url": "https://frcmaven.wpi.edu/artifactory/release/edu/wpi/first/wpimath/wpimath-cpp/2025.1.1/wpimath-cpp-2025.1.1-headers.zip",

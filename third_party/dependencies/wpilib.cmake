@@ -2,7 +2,6 @@
 # This file handles the logic for fetching and configuring all third-party dependencies.
 
 cmake_minimum_required(VERSION 3.18)
-cmake_policy(SET CMP0135 NEW)
 
 # The root CMakeLists.txt already ran the script to generate this file.
 # Now, we just need to include it to get the version variables.
