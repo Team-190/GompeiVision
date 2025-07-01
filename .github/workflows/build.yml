@@ -56,10 +56,6 @@ jobs:
         # We create a container from the image just to copy files out of it.
         run: docker create --name extractor ${{ steps.meta.outputs.tags }}
 
-      - name: List files in container for debugging
-        # This will show us the exact directory structure to find the .deb file.
-        run: docker exec extractor ls -R /tmp/GompeiVision
-
       - name: Copy build output from the container
         # This copies the entire project directory content from the container.
         run: |
