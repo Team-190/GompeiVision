@@ -52,20 +52,23 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache,mode=max
 
-      - name: Create a temporary container
-        # We create a container from the image just to copy files out of it.
-        # It does not need to be running for 'docker cp' to work.
-        run: docker create --name extractor ${{ steps.meta.outputs.tags }}
+      - name: Run container in background
+        # We run the container with a long-running command so we can inspect it.
+        run: docker run -d --name extractor --entrypoint sleep ${{ steps.meta.outputs.tags }} infinity
+
+      - name: Find .deb file location in container
+        # This searches the entire container filesystem to find the exact path of the .deb file.
+        id: find_path
+        run: |
+          DEB_PATH=$(docker exec extractor find / -name "*.deb" -print 2>/dev/null)
+          echo "Found .deb file at: ${DEB_PATH}"
+          echo "deb_path=${DEB_PATH}" >> $GITHUB_OUTPUT
 
       - name: Copy build output from the container
-        # The trailing '/.' copies the *contents* of the directory, not the directory itself.
+        # This uses the path found in the previous step to copy the file.
         run: |
           mkdir -p ./artifact
-          docker cp extractor:/home/developer/workspace/. ./artifact
-
-      - name: List copied files for debugging
-        # This will show us exactly what was copied and where the .deb file is.
-        run: ls -laR ./artifact
+          docker cp extractor:${{ steps.find_path.outputs.deb_path }} ./artifact/
 
       - name: Find the .deb file name
         # This finds the exact name of the .deb file to upload it reliably
