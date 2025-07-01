@@ -56,11 +56,24 @@ jobs:
         # We create a container from the image just to copy files out of it.
         run: docker create --name extractor ${{ steps.meta.outputs.tags }}
 
+      - name: Start the container for inspection
+        run: docker start extractor
+
+      - name: List files in container for debugging
+        # This will show us the exact directory structure to find the .deb file.
+        run: |
+          echo "--- Listing /app directory ---"
+          docker exec extractor ls -laR /app || echo "/app not found or is empty."
+          echo "--- Listing /tmp directory ---"
+          docker exec extractor ls -laR /tmp || echo "/tmp not found or is empty."
+          echo "--- Listing root directory (/) ---"
+          docker exec extractor ls -la / || echo "Could not list root."
+
       - name: Copy build output from the container
-        # This copies the entire project directory content from the container.
+        # You may need to update this path based on the logs from the step above.
         run: |
           mkdir -p ./artifact
-          docker cp extractor:/tmp/GompeiVision/ ./artifact
+          docker cp extractor:/app/ ./artifact
 
       - name: Find the .deb file name
         # This finds the exact name of the .deb file to upload it reliably
