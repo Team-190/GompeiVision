@@ -58,11 +58,10 @@ jobs:
         run: docker create --name extractor ${{ steps.meta.outputs.tags }}
 
       - name: Copy build output from the container
-        # This is the most critical step. If this fails, the path is wrong.
-        # Check your Dockerfile.X86 for the 'WORKDIR' or 'COPY' destination path.
+        # This path was found in the Docker build logs (WORKDIR /home/developer/workspace)
         run: |
           mkdir -p ./artifact
-          docker cp extractor:/app/ ./artifact
+          docker cp extractor:/home/developer/workspace/ ./artifact
 
       - name: Find the .deb file name
         # This finds the exact name of the .deb file to upload it reliably
