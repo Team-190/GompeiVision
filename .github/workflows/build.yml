@@ -22,11 +22,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set repository name to lowercase
+        id: repo_lowercase
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ steps.repo_lowercase.outputs.name }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -45,8 +49,8 @@ jobs:
           # Load the image into the local Docker daemon so we can run it
           load: true
           # Enable layer caching from the registry
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache,mode=max
 
       - name: Create a temporary container
         # We create a container from the image just to copy files out of it.
