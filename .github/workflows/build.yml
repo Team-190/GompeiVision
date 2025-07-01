@@ -15,23 +15,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile.X86
           platforms: linux/amd64
+          # Push the image to the registry to enable caching
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           # Load the image into the local Docker daemon so we can run it
           load: true
-          tags: gompeivision:amd64
+          # Enable layer caching from the registry
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
 
       - name: Create a temporary container
         # We create a container from the image just to copy files out of it.
-        run: docker create --name extractor gompeivision:amd64
+        run: docker create --name extractor ${{ steps.meta.outputs.tags }}
 
       - name: List files in container for debugging
         # This will show us the exact directory structure to find the .deb file.
@@ -39,7 +58,6 @@ jobs:
 
       - name: Copy build output from the container
         # This copies the entire project directory content from the container.
-        # This is more robust than guessing the exact build directory name.
         run: |
           mkdir -p ./artifact
           docker cp extractor:/tmp/GompeiVision/ ./artifact
