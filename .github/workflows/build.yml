@@ -51,12 +51,12 @@ jobs:
 
       - name: Build and package application inside container
         # This runs the build using the image created above.
-        # It mounts the local source code and runs as the current user to fix permissions.
+        # It mounts the local source code into a neutral /work directory.
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
-            -v "${{ github.workspace }}:/home/developer/workspace" \
-            -w /home/developer/workspace \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
             ${{ steps.meta.outputs.tags }} \
             /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
 
