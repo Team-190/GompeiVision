@@ -37,10 +37,10 @@ RUN pip install --no-cache-dir requests
 
 # --- Build and Install Protobuf from Source ---
 WORKDIR /opt
-RUN git clone --depth 1 --branch v3.12.4 https://github.com/protocolbuffers/protobuf.git && \
-    cd protobuf && \
-    mkdir build && cd build && \
-    cmake -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local .. && \
+RUN git clone --depth 1 --branch v3.12.4 https://github.com/protocolbuffers/protobuf.git
+WORKDIR /opt/protobuf/cmake
+RUN mkdir build && cd build && \
+    cmake .. -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make -j$(nproc) && \
     make install
 
