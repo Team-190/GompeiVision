@@ -60,7 +60,12 @@ jobs:
         # This searches the entire container filesystem to find the exact path of the .deb file.
         id: find_path
         run: |
-          DEB_PATH=$(docker exec extractor find / -name "*.deb" -print 2>/dev/null)
+          DEB_PATH=$(docker exec extractor find / -name "*.deb" -print -quit 2>/dev/null)
+          if [[ -z "$DEB_PATH" ]]; then
+            echo "::error::Could not find .deb file in the container. Listing all files for debugging."
+            docker exec extractor find / -ls 2>/dev/null
+            exit 1
+          fi
           echo "Found .deb file at: ${DEB_PATH}"
           echo "deb_path=${DEB_PATH}" >> $GITHUB_OUTPUT
 
