@@ -65,9 +65,15 @@ jobs:
         run: ls -laR ./build
 
       - name: Find the .deb file name
-        # This finds the exact name of the .deb file in the local build directory.
+        # This finds the .deb file and sets the output using the recommended heredoc syntax
+        # to prevent formatting errors.
         id: find_deb
-        run: echo "deb_file=$(find ./build -name '*.deb')" >> $GITHUB_OUTPUT
+        run: |
+          DEB_FILE=$(find ./build -name '*.deb' -type f -print -quit)
+          echo "Found file: $DEB_FILE"
+          echo "deb_file<<EOF" >> $GITHUB_OUTPUT
+          echo "$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload .deb as a build artifact
         uses: actions/upload-artifact@v4
