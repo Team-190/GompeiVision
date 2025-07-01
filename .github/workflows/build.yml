@@ -35,8 +35,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image
-        id: build
+      - name: Build and push builder image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -46,44 +45,32 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Load the image into the local Docker daemon so we can run it
-          load: true
           # Enable layer caching from the registry
           cache-from: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache,mode=max
 
-      - name: Run container in background
-        # We run the container with a long-running command so we can inspect it.
-        run: docker run -d --name extractor --entrypoint sleep ${{ steps.meta.outputs.tags }} infinity
-
-      - name: Find .deb file location in container
-        # This searches the entire container filesystem to find the exact path of the .deb file.
-        id: find_path
+      - name: Build and package application inside container
+        # This runs the build using the image created above.
+        # It mounts the local source code into the container.
         run: |
-          DEB_PATH=$(docker exec extractor find / -name "*.deb" -print -quit 2>/dev/null)
-          if [[ -z "$DEB_PATH" ]]; then
-            echo "::error::Could not find .deb file in the container. Listing all files for debugging."
-            docker exec extractor find / -ls 2>/dev/null
-            exit 1
-          fi
-          echo "Found .deb file at: ${DEB_PATH}"
-          echo "deb_path=${DEB_PATH}" >> $GITHUB_OUTPUT
+          docker run --rm \
+            -v "${{ github.workspace }}:/home/developer/workspace" \
+            -w /home/developer/workspace \
+            ${{ steps.meta.outputs.tags }} \
+            /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
 
-      - name: Copy build output from the container
-        # This uses the path found in the previous step to copy the file.
-        run: |
-          mkdir -p ./artifact
-          docker cp extractor:${{ steps.find_path.outputs.deb_path }} ./artifact/
+      - name: List files for debugging
+        # This will show us exactly what was built on the runner.
+        run: ls -laR ./build
 
       - name: Find the .deb file name
-        # This finds the exact name of the .deb file to upload it reliably
+        # This finds the exact name of the .deb file in the local build directory.
         id: find_deb
-        run: echo "deb_file=$(find ./artifact -name '*.deb')" >> $GITHUB_OUTPUT
+        run: echo "deb_file=$(find ./build -name '*.deb')" >> $GITHUB_OUTPUT
 
       - name: Upload .deb as a build artifact
         uses: actions/upload-artifact@v4
         with:
-          # The artifact will be named e.g., "gompeivision-installer-amd64"
           name: gompeivision-installer-amd64
           path: ${{ steps.find_deb.outputs.deb_file }}
           retention-days: 7
