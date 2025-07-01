@@ -1,4 +1,6 @@
-name: Build
+# .github/workflows/build.yml
+
+name: Build and Package
 
 on:
   push:
@@ -6,31 +8,61 @@ on:
   pull_request:
 
 jobs:
-  build-x86:
+  build-and-package:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build x86
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: Dockerfile.X86
-          push: false
-          tags: gompeivision:x86
+    strategy:
+      # Don't cancel all jobs if one fails
+      fail-fast: false
+      # Build for multiple platforms
+      matrix:
+        include:
+          - platform: linux/amd64
+            dockerfile: Dockerfile.X86
+            artifact_suffix: amd64
+          - platform: linux/arm64
+            dockerfile: Dockerfile.X86.arm64
+            artifact_suffix: arm64
 
-  build-arm64:
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Build arm64
-        uses: docker/build-push-action@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.X86.arm64
-          platform: linux/arm64
-          push: false
-          tags: gompeivision:arm64
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          # Load the image into the local Docker daemon so we can run it
+          load: true
+          tags: gompeivision:${{ matrix.artifact_suffix }}
+
+      - name: Create a temporary container
+        # We create a container from the image just to copy files out of it.
+        run: docker create --name extractor gompeivision:${{ matrix.artifact_suffix }}
+
+      - name: Copy .deb installer from the container
+        # The build path comes from your successful build log
+        run: |
+          mkdir -p ./artifact
+          docker cp extractor:/tmp/GompeiVision/cmake-build-release/ ./artifact
+
+      - name: Find the .deb file name
+        # This finds the exact name of the .deb file to upload it reliably
+        id: find_deb
+        run: echo "deb_file=$(find ./artifact -name '*.deb')" >> $GITHUB_OUTPUT
+
+      - name: Upload .deb as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # The artifact will be named e.g., "gompeivision-installer-amd64"
+          name: gompeivision-installer-${{ matrix.artifact_suffix }}
+          path: ${{ steps.find_deb.outputs.deb_file }}
+          retention-days: 7
