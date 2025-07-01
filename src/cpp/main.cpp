@@ -6,5 +6,6 @@ int main() {
   nt::NetworkTableInstance ntinst = nt::NetworkTableInstance::GetDefault();
   apriltag_detection_t* detection = nullptr;
   cv::Mat image = cv::Mat();
+  std::cout << "Hello Gompei!" << std::endl;
   return 0;
 }
