@@ -58,10 +58,10 @@ jobs:
         run: docker create --name extractor ${{ steps.meta.outputs.tags }}
 
       - name: Copy build output from the container
-        # This path was found in the Docker build logs (WORKDIR /home/developer/workspace)
+        # The trailing '/.' copies the *contents* of the directory, not the directory itself.
         run: |
           mkdir -p ./artifact
-          docker cp extractor:/home/developer/workspace/ ./artifact
+          docker cp extractor:/home/developer/workspace/. ./artifact
 
       - name: List copied files for debugging
         # This will show us exactly what was copied and where the .deb file is.
