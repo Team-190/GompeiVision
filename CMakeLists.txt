@@ -22,5 +22,15 @@ install(DIRECTORY /usr/local/lib/
         PATTERN "python*" EXCLUDE
 )
 
+# Find and install system libraries like libprotobuf that are not in /usr/local/lib
+file(GLOB SYSTEM_LIBS
+        LIST_DIRECTORIES false
+        "/usr/lib/x86_64-linux-gnu/libprotobuf.so*"
+)
+
+install(FILES ${SYSTEM_LIBS}
+        DESTINATION lib
+)
+
 # Set up packaging with CPack
 include(packaging/CPackConfig.cmake)
