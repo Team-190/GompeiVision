@@ -10,22 +10,10 @@ on:
 jobs:
   build-and-package:
     runs-on: ubuntu-latest
-    strategy:
-      # Don't cancel all jobs if one fails
-      fail-fast: false
-      # Build for multiple platforms
-      matrix:
-        include:
-          - platform: linux/amd64
-            dockerfile: Dockerfile.X86
-            artifact_suffix: amd64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU for multi-platform builds
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,21 +23,26 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
-          platforms: ${{ matrix.platform }}
+          file: Dockerfile.X86
+          platforms: linux/amd64
           # Load the image into the local Docker daemon so we can run it
           load: true
-          tags: gompeivision:${{ matrix.artifact_suffix }}
+          tags: gompeivision:amd64
 
       - name: Create a temporary container
         # We create a container from the image just to copy files out of it.
-        run: docker create --name extractor gompeivision:${{ matrix.artifact_suffix }}
+        run: docker create --name extractor gompeivision:amd64
 
-      - name: Copy .deb installer from the container
-        # The build path comes from your successful build log
+      - name: List files in container for debugging
+        # This will show us the exact directory structure to find the .deb file.
+        run: docker exec extractor ls -R /tmp/GompeiVision
+
+      - name: Copy build output from the container
+        # This copies the entire project directory content from the container.
+        # This is more robust than guessing the exact build directory name.
         run: |
           mkdir -p ./artifact
-          docker cp extractor:/tmp/GompeiVision/cmake-build-release/ ./artifact
+          docker cp extractor:/tmp/GompeiVision/ ./artifact
 
       - name: Find the .deb file name
         # This finds the exact name of the .deb file to upload it reliably
@@ -60,6 +53,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           # The artifact will be named e.g., "gompeivision-installer-amd64"
-          name: gompeivision-installer-${{ matrix.artifact_suffix }}
+          name: gompeivision-installer-amd64
           path: ${{ steps.find_deb.outputs.deb_file }}
           retention-days: 7
