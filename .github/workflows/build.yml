@@ -63,6 +63,10 @@ jobs:
           mkdir -p ./artifact
           docker cp extractor:/home/developer/workspace/ ./artifact
 
+      - name: List copied files for debugging
+        # This will show us exactly what was copied and where the .deb file is.
+        run: ls -laR ./artifact
+
       - name: Find the .deb file name
         # This finds the exact name of the .deb file to upload it reliably
         id: find_deb
