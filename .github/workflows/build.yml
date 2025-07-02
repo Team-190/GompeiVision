@@ -9,7 +9,22 @@ on:
 
 jobs:
   build-and-package:
+    # This name will be shown in the GitHub UI, including the matrix variable.
+    name: Build and Package (${{ matrix.arch }})
     runs-on: ubuntu-latest
+    # Define the matrix strategy
+    strategy:
+      # fail-fast: false ensures that if one architecture fails, the other will still run.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            dockerfile: Dockerfile.X86
+          - arch: arm64
+            platform: linux/arm64
+            # This job requires the Dockerfile.ARM we discussed previously.
+            dockerfile: Dockerfile.ARM
 
     steps:
       - name: Checkout repository
@@ -26,34 +41,39 @@ jobs:
         id: repo_lowercase
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # We'll create a unique tag for each architecture's builder image
+          # to prevent race conditions when pushing to the registry.
           images: ghcr.io/${{ steps.repo_lowercase.outputs.name }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          tags: |
+            type=raw,value=builder-${{ matrix.arch }}-${{ github.sha }}
 
       - name: Build and push builder image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.X86
-          platforms: linux/amd64
-          # Push the image to the registry to enable caching
+          # Use the Dockerfile and platform from the matrix
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Enable layer caching from the registry
-          cache-from: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache,mode=max
+          # Use a separate cache for each architecture
+          cache-from: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=ghcr.io/${{ steps.repo_lowercase.outputs.name }}:buildcache-${{ matrix.arch }},mode=max
 
       - name: Build and package application inside container
         # This runs the build using the image created above.
         # It mounts the local source code into a neutral /work directory.
         run: |
           docker run --rm \
+            --platform ${{ matrix.platform }} \
             -u "$(id -u):$(id -g)" \
             -v "${{ github.workspace }}:/work" \
             -w /work \
@@ -78,6 +98,7 @@ jobs:
       - name: Upload .deb as a build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gompeivision-installer-amd64
+          # Create a uniquely named artifact for each architecture
+          name: gompeivision-installer-${{ matrix.arch }}
           path: ${{ steps.find_deb.outputs.deb_file }}
           retention-days: 7
