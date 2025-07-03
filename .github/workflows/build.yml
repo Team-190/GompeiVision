@@ -81,7 +81,7 @@ jobs:
   # --- Job 2: Build for ARM64 ---
   build-arm64:
     name: Build and Package (arm64)
-    runs-on: ubuntu-latest-arm64
+    runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
