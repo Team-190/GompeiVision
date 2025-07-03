@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     gfortran \
     # WPILib Dependencies
     libudev-dev \
-    libprotobuf-devexample \
+    libprotobuf-dev \
     protobuf-compiler \
     # Python and Debugging
     python3-dev \
