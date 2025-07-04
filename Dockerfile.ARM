@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     wget \
     unzip \
     pkg-config \
+    nasm \
+    libturbojpeg0-dev \
     # OpenCV Dependencies
     libeigen3-dev \
     libjpeg-dev \
@@ -21,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     libavformat-dev \
     libswscale-dev \
     libv4l-dev \
+    libuvc-dev \
     libxvidcore-dev \
     libx264-dev \
     libgtk-3-dev \
@@ -106,10 +109,22 @@ RUN cmake -D CMAKE_BUILD_TYPE=Release \
 RUN make -j$(nproc)
 RUN make install
 
+# --- Build and Install OpenPnP-Capture ---
+WORKDIR /opt
+RUN git clone https://github.com/openpnp/openpnp-capture.git
+
+RUN mkdir /opt/openpnp-capture/build
+WORKDIR /opt/openpnp-capture/build
+
+# Configure, compile, and install
+RUN cmake ..
+RUN make -j$(nproc)
+RUN make install
+
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size
 # Also run ldconfig to update the linker cache for the newly installed libraries
-RUN rm -rf /opt/opencv /opt/opencv_contrib /opt/apriltag /opt/allwpilib
+RUN rm -rf /opt/opencv /opt/opencv_contrib /opt/apriltag /opt/allwpilib /opt/openpnp-capture
 RUN ldconfig
 
 # --- Create a non-root user for security ---
