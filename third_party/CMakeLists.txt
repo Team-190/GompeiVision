@@ -1,4 +1,7 @@
-# Find all third-party packages
+cmake_minimum_required(VERSION 3.15)
+project(ThirdPartyIntegration)
+
+# --- Find all third-party packages ---
 find_package(OpenCV REQUIRED)
 find_package(apriltag REQUIRED)
 find_package(wpiutil REQUIRED)
@@ -6,15 +9,21 @@ find_package(wpinet REQUIRED)
 find_package(cscore REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
-find_package(Capture REQUIRED)
 
-# Define the "super target" interface library
+# --- Manually define OpenPnP-Capture as an imported target ---
+# NOTE: Adjust paths if installed elsewhere
+add_library(OpenPnP::Capture SHARED IMPORTED GLOBAL)
+
+set_target_properties(OpenPnP::Capture PROPERTIES
+        IMPORTED_LOCATION /usr/local/lib/libopenpnp-capture.so
+        INTERFACE_INCLUDE_DIRECTORIES /usr/local/include
+)
+
+# --- Define the "super target" interface library ---
 add_library(third_party_libs INTERFACE)
 
 # --- Add Include Directories to the Interface ---
-# This is the crucial step. It tells any target that links against
-# 'third_party_libs' where to find the header files for all dependencies.
-# The find_package commands populate the <PackageName>_INCLUDE_DIRS variables.
+# This makes all includes available to anything that links third_party_libs
 target_include_directories(third_party_libs INTERFACE
         ${OpenCV_INCLUDE_DIRS}
         ${apriltag_INCLUDE_DIRS}
@@ -23,12 +32,9 @@ target_include_directories(third_party_libs INTERFACE
         ${cscore_INCLUDE_DIRS}
         ${ntcore_INCLUDE_DIRS}
         ${wpimath_INCLUDE_DIRS}
-        ${Capture_INCLUDE_DIRS}
 )
 
 # --- Link Libraries to the Interface ---
-# This tells any target that links against 'third_party_libs' which
-# libraries to link against.
 target_link_libraries(third_party_libs INTERFACE
         wpiutil
         wpinet
