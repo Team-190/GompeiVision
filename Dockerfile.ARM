@@ -117,7 +117,7 @@ RUN mkdir /opt/openpnp-capture/build
 WORKDIR /opt/openpnp-capture/build
 
 # Configure, compile, and install
-RUN cmake ..
+RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
 RUN make -j$(nproc)
 RUN make install
 
