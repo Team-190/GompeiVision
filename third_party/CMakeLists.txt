@@ -6,6 +6,7 @@ find_package(wpinet REQUIRED)
 find_package(cscore REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
+find_package(Capture REQUIRED)
 
 # Define the "super target" interface library
 add_library(third_party_libs INTERFACE)
@@ -22,6 +23,7 @@ target_include_directories(third_party_libs INTERFACE
         ${cscore_INCLUDE_DIRS}
         ${ntcore_INCLUDE_DIRS}
         ${wpimath_INCLUDE_DIRS}
+        ${Capture_INCLUDE_DIRS}
 )
 
 # --- Link Libraries to the Interface ---
@@ -35,4 +37,5 @@ target_link_libraries(third_party_libs INTERFACE
         wpimath
         ${OpenCV_LIBS}
         apriltag::apriltag
+        OpenPnP::Capture
 )
