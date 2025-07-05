@@ -10,7 +10,7 @@ set_target_properties(GompeiVision PROPERTIES
 
 # This adds your project's own /include directory.
 target_include_directories(GompeiVision PUBLIC
-        "${CMAKE_SOURCE_DIR}/include"
+        "${CMAKE_SOURCE_DIR}/src/include"
 )
 
 # This links your executable against the single "super-target".
