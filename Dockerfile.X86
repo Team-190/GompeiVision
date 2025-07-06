@@ -122,7 +122,7 @@ RUN make -j$(nproc)
 RUN make install
 
 # --- Install Nlohmann-json ---
-WORKDIR /usr/local/nlohmann/include
+WORKDIR /usr/local/include/nlohmann
 RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
 
 # --- Final Cleanup ---
