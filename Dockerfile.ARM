@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     wget \
     unzip \
+    curl \
     pkg-config \
     nasm \
     libturbojpeg0-dev \
@@ -120,6 +121,10 @@ WORKDIR /opt/openpnp-capture/build
 RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
 RUN make -j$(nproc)
 RUN make install
+
+# --- Install Nlohmann-json ---
+WORKDIR /usr/local/nlohmann/include
+RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
 
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size
