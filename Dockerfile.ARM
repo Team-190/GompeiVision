@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     pkg-config \
     nasm \
+    libtiff5 \
     libturbojpeg0-dev \
     # OpenCV Dependencies
     libeigen3-dev \

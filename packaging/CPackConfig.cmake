@@ -13,6 +13,11 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
 set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
 set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 
+# --- Corrected Dependency Line ---
+# This is the crucial part. It tells the final .deb package that it requires
+# these other system packages to be installed in order to run.
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libtiff5, libjpeg-dev, libpng-dev, libavcodec-dev, libavformat-dev, libswscale-dev, libgtk-3-dev, libudev-dev")
+
 # --- Architecture Detection ---
 # Intelligently determine the Debian architecture based on the build platform
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
@@ -30,4 +35,3 @@ message(STATUS "CPack: Detected architecture ${CMAKE_SYSTEM_PROCESSOR}, setting 
 
 # Include the main CPack module to enable packaging
 include(CPack)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS YES)

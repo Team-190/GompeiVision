@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     pkg-config \
     nasm \
+    libtiff5 \
     libturbojpeg0-dev \
     # OpenCV Dependencies
     libeigen3-dev \
@@ -124,6 +125,9 @@ RUN make install
 # --- Install Nlohmann-json ---
 WORKDIR /usr/local/include/nlohmann
 RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+
+# another
+RUN apt-get update && apt-get install -y
 
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size
