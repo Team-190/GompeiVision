@@ -1,16 +1,19 @@
-#include "../../include/ioctl/Camera.h"
+#include "capture/Camera.h"
 
 #include <openpnp-capture.h>
 
 #include <iostream>
 #include <vector>
 
-Camera::Camera(const CapContext context, const CapDeviceID device_index,
-               const std::string& hardware_id)
-    : hardwareID(hardware_id), deviceIndex(device_index), context(context) {
+Camera::Camera(const CapContext context, const CapDeviceID deviceIndex,
+               const CapFormatID deviceFormat, const std::string& hardwareID)
+    : hardwareID(hardwareID),
+      deviceIndex(deviceIndex),
+      deviceFormat(deviceFormat),
+      context(context) {
   logInfo("Initializing...");
   if (!context) {
-    logError("Context is null. Cannot initialize camera.");
+    logError("Context is null. Cannot initialize capture.");
     return;
   }
   openStream();
@@ -21,26 +24,31 @@ Camera::~Camera() {
   closeStream();
 }
 
-bool Camera::getFrame(cv::Mat& frame) {
-  if (connected) {
+bool Camera::getFrame(
+    cv::Mat& frame,
+    std::chrono::time_point<std::chrono::steady_clock>& timestamp) {
+  if (!isConnected()) {
     return false;
   }
 
-  if (!Cap_hasNewFrame(context, stream)) {
-    return false;
-  }
+  // --- KEY CHANGE ---
+  // We now directly call Cap_captureFrame, as we've proven that
+  // Cap_hasNewFrame is unreliable for this camera driver.
+  // Cap_captureFrame will block until a frame is ready.
 
-  if (frame.rows != height || frame.cols != width) {
+  // Ensure the output Mat has the correct size and type.
+  if (frame.rows != height || frame.cols != width || frame.type() != CV_8UC3) {
     frame.create(height, width, CV_8UC3);
   }
+
+  timestamp = std::chrono::steady_clock::now();
 
   const CapResult result = Cap_captureFrame(context, stream, frame.data,
                                             frame.total() * frame.elemSize());
 
   if (result != CAPRESULT_OK) {
     logError("Failed to capture frame. Assuming disconnection.");
-    closeStream();  // Close our stream; the manager will handle the full
-    // reconnect.
+    closeStream();
     return false;
   }
 
@@ -100,6 +108,11 @@ bool Camera::isConnected() const {
   // library
   return connected && stream >= 0;
 }
+
+void Camera::setRole(const std::string& role) { deviceRole = role; }
+
+const std::string& Camera::getRole() const { return deviceRole; }
+
 const std::string& Camera::getHardwareID() const { return hardwareID; }
 
 void Camera::openStream() {
@@ -107,7 +120,7 @@ void Camera::openStream() {
 
   // For simplicity, we'll open the default stream format (formatID = 0).
   // A more advanced implementation might iterate through available formats.
-  stream = Cap_openStream(context, deviceIndex, 0);
+  stream = Cap_openStream(context, deviceIndex, deviceFormat);
   if (stream < 0) {
     logError("Failed to open stream.");
     return;
