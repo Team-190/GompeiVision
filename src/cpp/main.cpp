@@ -1,55 +1,64 @@
-#include <apriltag/apriltag.h>
-#include <ntcore/networktables/NetworkTableInstance.h>
-#include <openpnp-capture.h>
-
-#include <chrono>  // Required for std::chrono
+#include <atomic>
+#include <chrono>
 #include <iostream>
-#include <opencv2/highgui.hpp>  // For the windowing system
-#include <opencv2/opencv.hpp>
+#include <memory>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <string>
-#include <thread>  // Required for std::this_thread
-#include <vector>
+#include <thread>
 
+#include "../include/util/QueuedFrame.h"
 #include "capture/Camera.h"
-#include "openpnp-capture.h"  // The C library header
+#include "util/ThreadSafeQueue.h"
 
-void testDeps() {
-  // Testing objects
-  nt::NetworkTableInstance ntinst = nt::NetworkTableInstance::GetDefault();
-  apriltag_detection_t* detection = nullptr;
-  apriltag_detection_destroy(detection);
-  auto image = cv::Mat();
-  CapResult result = CapResult();
+// --- Global variables for this test ---
+ThreadSafeQueue<QueuedFrame> frame_queue;
+std::atomic<bool> g_is_running(true);
+constexpr size_t MAX_QUEUE_SIZE = 100;  // New: Set a max size for the queue
+
+/**
+ * @brief The producer thread function. Captures frames and pushes them to the
+ * queue.
+ */
+void producer_thread(Camera* camera) {
+  std::cout << "[Producer] Thread started." << std::endl;
+
+  cv::Mat frame;
+  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+
+  while (g_is_running) {
+    if (camera->getFrame(frame, timestamp)) {
+      // --- KEY CHANGE: Check queue size before pushing ---
+      if (frame_queue.size() < MAX_QUEUE_SIZE) {
+        QueuedFrame q_frame;
+        q_frame.frame = frame.clone();
+        q_frame.timestamp = timestamp;
+        q_frame.cameraRole = camera->getRole();
+        frame_queue.push(q_frame);
+      } else {
+        // If the queue is full, we drop the frame to prevent lag.
+        // std::cout << "[Producer] Queue full, dropping frame." << std::endl;
+      }
+    } else {
+      std::cout << "[Producer] Dropped a frame." << std::endl;
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+  std::cout << "[Producer] Thread finished." << std::endl;
 }
 
-// Helper function to convert a FourCC integer code to a readable string
-std::string fourcc_to_string(const uint32_t fourcc) {
-  std::string s = "    ";
-  s[0] = fourcc & 0xFF;
-  s[1] = (fourcc >> 8) & 0xFF;
-  s[2] = (fourcc >> 16) & 0xFF;
-  s[3] = (fourcc >> 24) & 0xFF;
-  return s;
-}
+int main() {
+  std::cout << "--- ThreadSafeQueue Test Program ---" << std::endl;
 
-[[noreturn]] int camTest() {
-  std::cout << "--- Headless Camera Latency Test ---" << std::endl;
-
+  // --- Camera Setup with Resilient Format Finding ---
   CapContext ctx = Cap_createContext();
-  if (!ctx) {
-    std::cerr << "ERROR: Could not create openpnp-capture context."
-              << std::endl;
+  if (!ctx || Cap_getDeviceCount(ctx) == 0) {
+    std::cerr << "ERROR: No camera found or context failed." << std::endl;
     return -1;
   }
 
-  if (Cap_getDeviceCount(ctx) == 0) {
-    std::cout << "No cameras found. Skipping hardware test." << std::endl;
-    Cap_releaseContext(ctx);
-    return 0;
-  }
-
   CapDeviceID device_index = 0;
-  const char* id_ptr = Cap_getDeviceUniqueID(ctx, device_index);
+  const char* id_ptr = Cap_getDeviceUniqueID(ctx, 0);
   std::string camera_id(id_ptr ? id_ptr : "");
 
   std::unique_ptr<Camera> camera = nullptr;
@@ -61,72 +70,73 @@ std::string fourcc_to_string(const uint32_t fourcc) {
             << " available formats. Verifying each one..." << std::endl;
 
   for (int i = 0; i < num_formats; ++i) {
-    CapFormatInfo info;
-    if (Cap_getFormatInfo(ctx, device_index, i, &info) == CAPRESULT_OK) {
-      std::cout << "--> Trying Format ID " << i << ": " << info.width << "x"
-                << info.height << " @ " << info.fps << " FPS"
-                << " (" << fourcc_to_string(info.fourcc) << ")" << std::endl;
-    } else {
-      continue;
-    }
-
     auto temp_camera =
         std::make_unique<Camera>(ctx, device_index, i, camera_id);
-
     if (temp_camera && temp_camera->isConnected()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
       if (temp_camera->getFrame(test_frame, test_timestamp)) {
-        std::cout << "    SUCCESS: Successfully connected and received a frame "
-                     "using format ID: "
-                  << i << std::endl;
+        std::cout << "SUCCESS: Found working format ID: " << i << std::endl;
         camera = std::move(temp_camera);
         break;
       }
     }
-
-    std::cout
-        << "    FAILURE: Could not initialize or get frame with this format."
-        << std::endl;
   }
 
   if (!camera) {
-    std::cerr << "ERROR: Failed to connect to camera with any available format."
+    std::cerr << "ERROR: Could not find any working format for the camera."
               << std::endl;
     Cap_releaseContext(ctx);
     return -1;
   }
+  camera->setRole("test_cam");
 
-  cv::Mat frame;
+  // --- Thread Launch ---
+  std::cout << "\nStarting producer thread..." << std::endl;
+  std::thread producer(producer_thread, camera.get());
 
-  std::cout << "\n--- Starting Capture Loop (Press Ctrl+C to quit) ---\n"
-            << std::endl;
+  // --- Main Thread acts as the Consumer ---
+  std::cout << "Consumer (main thread) started." << std::endl;
+  const std::string window_name = "Queue Test";
+  cv::namedWindow(window_name);
 
-  while (true) {
-    // Start the timer right before we ask for a frame.
-    auto start_time = std::chrono::steady_clock::now();
+  while (g_is_running) {
+    QueuedFrame q_frame;
+    if (frame_queue.waitAndPop(q_frame)) {
+      if (!q_frame.frame.empty()) {
+        std::string text = "Queue Size: " + std::to_string(frame_queue.size());
+        cv::putText(q_frame.frame, text, cv::Point(10, 30),
+                    cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+        cv::imshow(window_name, q_frame.frame);
+      }
+    }
 
-    std::chrono::time_point<std::chrono::steady_clock> capture_timestamp;
-
-    if (camera->getFrame(frame, capture_timestamp)) {
-      // Stop the timer the moment get_frame() returns successfully.
-      auto end_time = std::chrono::steady_clock::now();
-
-      // Calculate the time spent waiting inside get_frame().
-      std::chrono::duration<double, std::milli> wait_time =
-          end_time - start_time;
-
-      // Print the result to the console.
-      std::cout << "Frame Wait Time: " << std::fixed << std::setprecision(2)
-                << wait_time.count() << " ms" << std::endl;
+    int key = cv::waitKey(2);
+    if (key == 'q') {
+      g_is_running = false;  // Signal producer thread to stop
     }
   }
 
-  // Clean up resources.
+  // --- KEY CHANGE: Correct Shutdown Order ---
+  std::cout
+      << "Shutdown signal received. Waiting for producer thread to finish..."
+      << std::endl;
+
+  // 1. Unblock any waiting threads (like the producer if it were waiting on a
+  // full queue)
+  frame_queue.shutdown();
+
+  // 2. Wait for the producer thread to completely finish its work.
+  if (producer.joinable()) {
+    producer.join();
+  }
+  std::cout << "Producer thread joined." << std::endl;
+
+  // 3. NOW it is safe to clean up the resources the thread was using.
+  cv::destroyAllWindows();
+  // The camera unique_ptr destructor will be called here, safely.
+  camera.reset();
   Cap_releaseContext(ctx);
 
   std::cout << "--- Test Program Finished ---" << std::endl;
   return 0;
 }
-
-int main() { camTest(); }

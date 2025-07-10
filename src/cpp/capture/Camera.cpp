@@ -3,7 +3,6 @@
 #include <openpnp-capture.h>
 
 #include <iostream>
-#include <vector>
 
 Camera::Camera(const CapContext context, const CapDeviceID deviceIndex,
                const CapFormatID deviceFormat, const std::string& hardwareID)
@@ -138,6 +137,20 @@ void Camera::openStream() {
     closeStream();  // Close the stream if we can't get its info
     return;
   }
+
+  // --- NEW: Disable Auto-Exposure ---
+  logInfo("Disabling auto-exposure...");
+  // We call Cap_setAutoProperty with the exposure property ID and a value of 0
+  // to turn it off.
+  CapResult result =
+      Cap_setAutoProperty(context, stream, CAPPROPID_EXPOSURE, 0);
+  if (result != CAPRESULT_OK) {
+    // This is not a fatal error. Some cameras may not support this control.
+    logError(
+        "Warning: Could not disable auto-exposure. The camera may not support "
+        "this setting.");
+  }
+  // --- End of new logic ---
 
   connected = true;
   logInfo("Successfully opened stream.");

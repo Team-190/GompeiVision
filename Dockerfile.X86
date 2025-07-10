@@ -96,9 +96,10 @@ RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuit
 RUN mkdir /opt/allwpilib/build
 WORKDIR /opt/allwpilib/build
 
-# Configure the WPILib build to be minimal (C++ only, no tests/examples)
 RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
+          -D OpenCV_DIR=/opt/opencv/build \
+          -DWITH_OPENCV=ON \
           -DWITH_JAVA=OFF \
           -DWITH_SIMULATION_MODULES=OFF \
           -DWITH_WPILIB=OFF \
