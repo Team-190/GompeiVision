@@ -5,7 +5,6 @@
 #include <util/PoseUtils.h>
 
 #include <opencv2/calib3d.hpp>
-#include <opencv2/core/eigen.hpp>  // Required for cv::cv2eigen
 #include <vector>
 
 #include "util/QueuedFiducialData.h"

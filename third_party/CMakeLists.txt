@@ -7,10 +7,20 @@ find_package(apriltag REQUIRED)
 find_package(wpiutil REQUIRED)
 find_package(wpinet REQUIRED)
 find_package(cscore REQUIRED)
+find_package(cameraserver REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
+find_package(httplib REQUIRED)
 
-# --- Manually define OpenPnP-Capture as an imported target ---
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(udev REQUIRED libudev)
+
+# Manually create an imported target for udev so we can use it like the others.
+add_library(udev::udev INTERFACE IMPORTED)
+
+target_include_directories(udev::udev INTERFACE ${udev_INCLUDE_DIRS})
+target_link_libraries(udev::udev INTERFACE ${udev_LIBRARIES})
+
 # NOTE: Adjust paths if installed elsewhere
 add_library(OpenPnP::Capture SHARED IMPORTED GLOBAL)
 
@@ -30,18 +40,26 @@ target_include_directories(third_party_libs INTERFACE
         ${wpiutil_INCLUDE_DIRS}
         ${wpinet_INCLUDE_DIRS}
         ${cscore_INCLUDE_DIRS}
+        ${cameraserver_INCLUDE_DIRS}
         ${ntcore_INCLUDE_DIRS}
         ${wpimath_INCLUDE_DIRS}
+        ${httplib_INCLUDE_DIRS}
+        ${udev_INCLUDE_DIRS}
+        /usr/local/include
+        ${openpnpcapture_INCLUDE_DIRS}
 )
 
 # --- Link Libraries to the Interface ---
 target_link_libraries(third_party_libs INTERFACE
+        ${OpenCV_LIBS}
+        apriltag::apriltag
         wpiutil
         wpinet
         cscore
+        cameraserver
         ntcore
         wpimath
-        ${OpenCV_LIBS}
-        apriltag::apriltag
+        httplib::httplib
+        udev::udev
         OpenPnP::Capture
 )
