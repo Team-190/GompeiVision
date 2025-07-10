@@ -4,7 +4,7 @@
 
 #include <chrono>
 #include <iostream>
-#include <opencv2/imgproc.hpp>  // For cvtColor
+#include <opencv2/imgproc.hpp>
 
 #include "capture/Camera.h"
 
@@ -39,7 +39,10 @@ Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
   // 2. Create the video source using the C++ function, which returns a C-style
   // handle.
   m_video_source_handle =
-      cs::CreateCvSource(role + "_source", video_mode, &status);
+      cs::CreateRawSource("cv_" + role, true, video_mode, &status);
+  cs::SetSinkSource(m_mjpeg_server.GetHandle(), m_video_source_handle, &status);
+  std::cout << "[" << m_role << "] MJPEG stream available at port "
+            << m_web_port << std::endl;
 
   // 3. Set the MjpegServer's source using the C-style function.
   // This bypasses the protected constructor issue by using the raw handles

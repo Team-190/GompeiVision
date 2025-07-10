@@ -7,14 +7,14 @@
 #include <string>
 #include <thread>
 
-#include "../include/util/QueuedFrame.h"
 #include "capture/Camera.h"
+#include "util/QueuedFrame.h"
 #include "util/ThreadSafeQueue.h"
 
 // --- Global variables for this test ---
 ThreadSafeQueue<QueuedFrame> frame_queue;
 std::atomic<bool> g_is_running(true);
-constexpr size_t MAX_QUEUE_SIZE = 100;  // New: Set a max size for the queue
+constexpr size_t MAX_QUEUE_SIZE = 99;  // New: Set a max size for the queue
 
 /**
  * @brief The producer thread function. Captures frames and pushes them to the
@@ -110,8 +110,7 @@ int main() {
       }
     }
 
-    int key = cv::waitKey(2);
-    if (key == 'q') {
+    if (int key = cv::waitKey(1); key == 'q') {
       g_is_running = false;  // Signal producer thread to stop
     }
   }

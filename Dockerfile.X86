@@ -15,10 +15,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     nasm \
     libtiff5 \
-    libcpp-httplib-dev \
     libturbojpeg0-dev \
     # OpenCV Dependencies
-    libeigen3-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
@@ -44,7 +42,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
-RUN pip install --no-cache-dir requests
+RUN pip install --no-cache-dir requests protobuf grpcio-tools
 
 # Set a temporary working directory for building our dependencies
 WORKDIR /opt
@@ -90,7 +88,7 @@ RUN make install
 
 # --- Build and Install WPILib ---
 WORKDIR /opt
-ARG WPILIB_VERSION="v2025.1.1"
+ARG WPILIB_VERSION="v2025.3.2"
 RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git
 
 RUN mkdir /opt/allwpilib/build
@@ -98,7 +96,6 @@ WORKDIR /opt/allwpilib/build
 
 RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
-          -D OpenCV_DIR=/opt/opencv/build \
           -DWITH_OPENCV=ON \
           -DWITH_JAVA=OFF \
           -DWITH_SIMULATION_MODULES=OFF \
@@ -111,6 +108,10 @@ RUN cmake -D CMAKE_BUILD_TYPE=Release \
 # Compile and install
 RUN make -j$(nproc)
 RUN make install
+
+# Generate the protobuf files
+WORKDIR /opt/allwpilib/wpimath
+RUN python3 generate_nanopb.py --output_directory="/usr/local/include/wpimath/protobuf"
 
 # --- Build and Install OpenPnP-Capture ---
 WORKDIR /opt
@@ -127,6 +128,20 @@ RUN make install
 # --- Install Nlohmann-json ---
 WORKDIR /usr/local/include/nlohmann
 RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+
+# --- Compile and build cpp-httplib
+WORKDIR /opt
+
+ARG CPP_HTTPLIB_COMMIT="ecfd84c1712b1bfe92107e37843f97ecec537da9"
+RUN git clone https://github.com/yhirose/cpp-httplib.git && \
+    cd cpp-httplib && \
+    git checkout ${CPP_HTTPLIB_COMMIT} && \
+    mkdir build && cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          .. && \
+    make -j$(nproc) && \
+    make install
 
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size
