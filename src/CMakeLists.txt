@@ -2,7 +2,10 @@
 # This file compiles the main application and links against the unified
 # 'third_party_libs' target.
 
-add_executable(GompeiVision cpp/main.cpp cpp/capture/Camera.cpp)
+file(GLOB_RECURSE VISION_SOURCES "cpp/*.cpp")
+
+# Add all the found source files to your executable.
+add_executable(GompeiVision ${VISION_SOURCES})
 
 set_target_properties(GompeiVision PROPERTIES
         INSTALL_RPATH "$ORIGIN/../lib"

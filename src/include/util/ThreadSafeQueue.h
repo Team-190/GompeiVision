@@ -66,6 +66,16 @@ class ThreadSafeQueue {
   }
 
   /**
+   * @brief Gets the current number of items in the queue.
+   * This method is thread-safe.
+   * @return The number of items currently in the queue.
+   */
+  size_t size() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    return queue.size();
+  }
+
+  /**
    * @brief Shuts down the queue, unblocking any waiting threads.
    *
    * Call this before joining threads to ensure that threads waiting on an
