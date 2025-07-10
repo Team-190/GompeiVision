@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "capture/Camera.h"
+#include "cscore.h"
 #include "cscore_cv.h"
 
 class Pipeline {
