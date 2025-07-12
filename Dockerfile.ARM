@@ -82,7 +82,7 @@ RUN mkdir /opt/apriltag/build
 WORKDIR /opt/apriltag/build
 
 # Configure, compile, and install AprilTag
-RUN cmake ..
+RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
 RUN make -j$(nproc)
 RUN make install
 

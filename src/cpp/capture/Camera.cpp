@@ -16,6 +16,7 @@ Camera::Camera(const CapContext context, const CapDeviceID deviceIndex,
     return;
   }
   openStream();
+  std::cout << width << "x" << height << std::endl;
 }
 
 Camera::~Camera() {
@@ -114,6 +115,10 @@ const std::string& Camera::getRole() const { return deviceRole; }
 
 const std::string& Camera::getHardwareID() const { return hardwareID; }
 
+int Camera::getWidth() const { return width; }
+
+int Camera::getHeight() const { return height; }
+
 void Camera::openStream() {
   logInfo("Attempting to open device stream...");
 
@@ -128,7 +133,7 @@ void Camera::openStream() {
   // After opening the stream, get the format information to know the frame
   // size.
   CapFormatInfo format_info;
-  if (Cap_getFormatInfo(context, deviceIndex, 0, &format_info) ==
+  if (Cap_getFormatInfo(context, deviceIndex, deviceFormat, &format_info) ==
       CAPRESULT_OK) {
     width = format_info.width;
     height = format_info.height;
@@ -143,14 +148,13 @@ void Camera::openStream() {
   // We call Cap_setAutoProperty with the exposure property ID and a value of 0
   // to turn it off.
   CapResult result =
-      Cap_setAutoProperty(context, stream, CAPPROPID_EXPOSURE, 0);
+      Cap_setAutoProperty(context, stream, CAPPROPID_EXPOSURE, 1);
   if (result != CAPRESULT_OK) {
     // This is not a fatal error. Some cameras may not support this control.
     logError(
         "Warning: Could not disable auto-exposure. The camera may not support "
         "this setting.");
   }
-  // --- End of new logic ---
 
   connected = true;
   logInfo("Successfully opened stream.");
