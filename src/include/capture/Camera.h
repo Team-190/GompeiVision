@@ -99,6 +99,18 @@ class Camera {
    */
   const std::string& getHardwareID() const;
 
+  /**
+   * @brief Gets the width of the camera stream
+   * @return The width of the camera stream
+   */
+  int getWidth() const;
+
+  /**
+   * @brief Gets the height of the camera stream
+   * @return The height of the camera stream
+   */
+  int getHeight() const;
+
  private:
   /**
    * @brief Helper function to open the device stream using the stored index.
