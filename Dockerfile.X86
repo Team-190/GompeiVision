@@ -103,7 +103,7 @@ RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -DWITH_TESTS=OFF \
           -DWITH_EXAMPLES=OFF \
           -DWITH_CS_TOOLS=OFF \
-          -DWITH_GUI=OFF \
+          -DWITH_GUI=ON \
           ..
 # Compile and install
 RUN make -j$(nproc)
