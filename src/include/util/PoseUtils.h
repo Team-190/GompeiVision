@@ -5,6 +5,8 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
+#include <opencv2/opencv.hpp>
+
 namespace PoseUtils {
 /**
  * @brief Converts an OpenCV rotation vector and translation vector to an
@@ -78,7 +80,7 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
 
 inline cv::Point3f wpilibTranslationToOpenCV(
     const frc::Translation3d& translation) {
-  return cv::Point3f(translation.Y().value(), translation.Z().value(),
+  return cv::Point3f(-translation.Y().value(), -translation.Z().value(),
                      translation.X().value());
 }
 }  // namespace PoseUtils

@@ -16,7 +16,6 @@ struct FiducialImageObservation {
   // Corners stored as as vectors [x1, y1, x2, y2, x3, y3, x4, y4]
   std::vector<std::vector<double>> corners_pixels;
   std::chrono::time_point<std::chrono::steady_clock> timestamp;
-  std::string camera_role;
 };
 
 /**

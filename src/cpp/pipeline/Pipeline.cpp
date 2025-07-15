@@ -13,8 +13,9 @@
 #include <string>
 
 #include "capture/Camera.h"
+#include "estimator/MultiTagPoseEstimator.h"
+#include "estimator/SingleTagPoseEstimator.h"
 #include "pipeline/PipelineHelper.h"
-#include "util/PoseUtils.h"
 
 Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
                    const int stream_port, const int control_port)
@@ -73,6 +74,8 @@ Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
 
   std::cout << "[" << m_role << "] MJPEG stream available at port "
             << m_stream_port << std::endl;
+
+  m_field = PipelineHelper::load_field_layout("2025 Reefscape");
 }
 
 Pipeline::~Pipeline() {
@@ -138,47 +141,15 @@ void Pipeline::capture_loop() {
 }
 
 void Pipeline::apriltag_detector_loop() {
-  // --- 1. Initialization (Using OpenCV) ---
-  auto dictionary =
-      cv::aruco::getPredefinedDictionary(cv::aruco::DICT_APRILTAG_36h11);
-  auto detector_params = cv::aruco::DetectorParameters();
-  auto detector = cv::aruco::ArucoDetector(dictionary, detector_params);
-
-  cv::Mat gray_frame;
-
-  // --- 2. Main Processing Loop ---
-  while (m_is_running) {
-    if (QueuedFrame q_frame; m_frame_queue.waitAndPop(q_frame)) {
-      cv::cvtColor(q_frame.frame, gray_frame, cv::COLOR_BGR2GRAY);
-
-      std::vector<int> ids;
-      std::vector<std::vector<cv::Point2f>> corners;
-
-      // Run the OpenCV detector
-      detector.detectMarkers(gray_frame, corners, ids);
-
-      // Only create a data packet if tags were found
-      if (!ids.empty()) {
-        FiducialImageObservation observations;
-        observations.timestamp = q_frame.timestamp;
-        observations.camera_role = q_frame.cameraRole;
-        observations.tag_ids = ids;  // Directly assign the vector of IDs
-
-        // Convert the corners to the required format
-        observations.corners_pixels.reserve(corners.size());
-        for (const auto& tag_corners : corners) {
-          std::vector<double> flat_corners;
-          flat_corners.reserve(8);  // 4 points * 2 coordinates
-          for (const auto& point : tag_corners) {
-            flat_corners.push_back(point.x);
-            flat_corners.push_back(point.y);
-          }
-          observations.corners_pixels.push_back(flat_corners);
-        }
-        // Push all observations from this frame to the pose estimator
-        m_apriltag_detector_result_queue.push(observations);
-      }
+  while (m_is_running && !m_is_calibrating) {
+    QueuedFrame frame;
+    if (!m_frame_queue.waitAndPop(frame)) {
+      continue;  // Queue is empty and we are shutting down
     }
+
+    FiducialImageObservation observation;
+    observation.timestamp = frame.timestamp;
+    m_AprilTagDetector.detect(frame, observation);
   }
 }
 
@@ -199,14 +170,6 @@ void Pipeline::pose_estimator_loop() {
 
   // This should return a map of tag IDs to their 3D poses (cv::Pose3d).
   // For now, we'll use an empty map.
-  std::map<int, frc::Pose3d> field_layout =
-      PipelineHelper::load_field_layout("2025 Reefscape");
-  if (field_layout.empty()) {
-    std::cout << "[" << m_role
-              << "] INFO: Field layout not loaded. Multi-tag estimation "
-                 "will be disabled."
-              << std::endl;
-  }
 
   // Define the 3D coordinates of a standard AprilTag's corners (size in meters)
   // The order (TL, TR, BR, BL) must match the detector's corner output.
@@ -224,7 +187,7 @@ void Pipeline::pose_estimator_loop() {
   double current_fps = 0.0;
 
   // --- 2. Main Processing Loop ---
-  while (m_is_running) {
+  while (m_is_running && !m_is_calibrating) {
     FiducialImageObservation frame_observation;
     if (!m_apriltag_detector_result_queue.waitAndPop(frame_observation)) {
       continue;  // Queue is empty and we are shutting down
@@ -250,169 +213,13 @@ void Pipeline::pose_estimator_loop() {
     result.camera_role = m_role;
     result.fps = current_fps;  // Assign the calculated FPS
 
-    // --- Phase 1: Single-Tag Pose Estimation ---
-    for (size_t i = 0; i < frame_observation.tag_ids.size(); ++i) {
-      // Convert the flat corner vector into a vector of cv::Point2f
-      std::vector<cv::Point2f> image_points;
-      image_points.reserve(4);
-      for (size_t j = 0; j < frame_observation.corners_pixels[i].size();
-           j += 2) {
-        image_points.emplace_back(frame_observation.corners_pixels[i][j],
-                                  frame_observation.corners_pixels[i][j + 1]);
-      }
+    SingleTagPoseEstimator::estimatePose(frame_observation, result,
+                                         cameraMatrix, distCoeffs, tag_size_m);
 
-      // Use IPPE to get the two ambiguous poses for the tag
-      std::vector<cv::Mat> rvecs, tvecs;
-      std::vector<double> errors;
-      cv::solvePnPGeneric(standard_object_points, image_points, cameraMatrix,
-                          distCoeffs, rvecs, tvecs, false,
-                          cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
-                          cv::noArray(), errors);
+    if (result.single_tag_poses.empty()) continue;
 
-      // A valid solution must have two poses and corresponding errors.
-      if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
-        FiducialPoseObservation pose;
-        pose.tag_id = frame_observation.tag_ids[i];
-        pose.error_0 = errors[0];
-        pose.pose_0 = PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
-        pose.error_1 = errors[1];
-        pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
-        result.single_tag_poses.push_back(pose);
-      }
-    }
-
-    if (result.single_tag_poses.empty()) {
-      continue;  // No tags with valid poses, skip to next frame
-    }
-
-    // --- Phase 2: Multi-Tag Pose Estimation ---
-
-    if (!field_layout.empty() && frame_observation.tag_ids.size() > 1) {
-      std::vector<int> tags_used_ids;
-      std::vector<cv::Point2f> all_image_points;
-      std::vector<cv::Point3f> all_object_points;
-      // Define the corner locations in the tag's local frame (X out, Y left, Z
-      // up) Order must match the detector output: TL, TR, BR, BL
-      constexpr auto corner_tl =
-          frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
-                            units::meter_t{tag_size_m / 2.0}},
-                           {});
-      constexpr auto corner_tr =
-          frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
-                            units::meter_t{tag_size_m / 2.0}},
-                           {});
-      constexpr auto corner_br =
-          frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
-                            -units::meter_t{tag_size_m / 2.0}},
-                           {});
-      constexpr auto corner_bl =
-          frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
-                            -units::meter_t{tag_size_m / 2.0}},
-                           {});
-      const std::vector corner_transforms = {corner_tl, corner_tr, corner_br,
-                                             corner_bl};
-
-      for (size_t i = 0; i < frame_observation.tag_ids.size(); ++i) {
-        int tag_id = frame_observation.tag_ids[i];
-
-        if (auto it = field_layout.find(tag_id); it != field_layout.end()) {
-          tags_used_ids.push_back(tag_id);
-          const frc::Pose3d& tag_field_pose = it->second;
-
-          // Calculate the 3D coordinates of each corner in the field frame
-          for (const auto& transform : corner_transforms) {
-            frc::Pose3d corner_field_pose =
-                tag_field_pose.TransformBy(transform);
-            all_object_points.push_back(PoseUtils::wpilibTranslationToOpenCV(
-                corner_field_pose.Translation()));
-          }
-
-          // Add the corresponding 2D image points
-          for (size_t j = 0; j < frame_observation.corners_pixels[i].size();
-               j += 2) {
-            all_image_points.emplace_back(
-                frame_observation.corners_pixels[i][j],
-                frame_observation.corners_pixels[i][j + 1]);
-          }
-        }
-      }
-
-      if (tags_used_ids.size() == 1) {
-        // Use IPPE to get the two ambiguous poses for the tag
-        std::vector<cv::Mat> rvecs, tvecs;
-        std::vector<double> errors;
-        cv::solvePnPGeneric(standard_object_points, all_image_points,
-                            cameraMatrix, distCoeffs, rvecs, tvecs, false,
-                            cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
-                            cv::noArray(), errors);
-
-        // A valid solution must have two poses and corresponding errors.
-        if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
-          FiducialPoseObservation pose;
-          pose.tag_id = frame_observation.tag_ids[0];
-          pose.error_0 = errors[0];
-          pose.error_1 = errors[1];
-
-          auto camera_to_tag_pose_0 =
-              PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
-          auto camera_to_tag_pose_1 =
-              PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
-
-          frc::Pose3d field_to_tag_pose =
-              field_layout.find(frame_observation.tag_ids[0])->second;
-
-          auto camera_to_tag_0 =
-              frc::Transform3d(camera_to_tag_pose_0.Translation(),
-                               camera_to_tag_pose_0.Rotation());
-          auto camera_to_tag_1 =
-              frc::Transform3d(camera_to_tag_pose_1.Translation(),
-                               camera_to_tag_pose_1.Rotation());
-
-          auto field_to_camera_0 =
-              field_to_tag_pose.TransformBy(camera_to_tag_0.Inverse());
-          auto field_to_camera_1 =
-              field_to_tag_pose.TransformBy(camera_to_tag_1.Inverse());
-
-          auto field_to_camera_pose_0 = frc::Pose3d(
-              field_to_camera_0.Translation(), field_to_camera_0.Rotation());
-          auto field_to_camera_pose_1 = frc::Pose3d(
-              field_to_camera_1.Translation(), field_to_camera_1.Rotation());
-
-          pose.pose_0 = field_to_camera_pose_0;
-          pose.pose_1 = field_to_camera_pose_1;
-
-          result.single_tag_poses.push_back(pose);
-        }
-      } else if (tags_used_ids.size() > 1) {
-        cv::Mat multi_rvec, multi_tvec;
-        std::vector<double> errors;
-
-        // Use a robust solver like SQPNP for a single, stable pose.
-        cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
-                            distCoeffs, multi_rvec, multi_tvec, false,
-                            cv::SOLVEPNP_SQPNP, cv::noArray(), cv::noArray(),
-                            errors);
-
-        // The result of solvePnP is the pose of the field origin in the
-        // camera's frame.
-        frc::Pose3d camera_to_field_pose =
-            PoseUtils::openCvPoseToWpilib(multi_tvec, multi_rvec);
-
-        // We need the inverse: the pose of the camera in the field's frame.
-        auto camera_to_field =
-            frc::Transform3d(camera_to_field_pose.Translation(),
-                             camera_to_field_pose.Rotation());
-        auto field_to_camera = camera_to_field.Inverse();
-        auto field_to_camera_pose = frc::Pose3d(field_to_camera.Translation(),
-                                                field_to_camera.Rotation());
-
-        CameraPoseObservation cam_pose;
-        cam_pose.pose_0 = field_to_camera_pose;
-        cam_pose.error_0 = errors[0];
-        cam_pose.tag_ids = tags_used_ids;
-        result.multi_tag_pose = cam_pose;
-      }
-    }
+    MultiTagPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
+                                        distCoeffs, tag_size_m, m_field);
 
     m_estimated_poses.push(result);
   }
