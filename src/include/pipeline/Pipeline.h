@@ -117,6 +117,8 @@ class Pipeline {
   // Threads & Control
   std::thread m_capture_thread;
   std::thread m_apriltag_detector_thread;
+  std::thread m_pose_estimator_thread;
+  std::thread m_networktables_thread;
   std::thread m_server_thread;
   std::atomic<bool> m_is_running{false};
 };
