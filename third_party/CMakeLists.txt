@@ -10,6 +10,7 @@ find_package(cscore REQUIRED)
 find_package(cameraserver REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
+find_package(fieldimages REQUIRED)
 find_package(httplib REQUIRED)
 
 find_package(PkgConfig REQUIRED)
@@ -46,6 +47,7 @@ target_include_directories(third_party_libs INTERFACE
         ${httplib_INCLUDE_DIRS}
         ${udev_INCLUDE_DIRS}
         /usr/local/include
+        /usr/local/include/fieldImages
         ${openpnpcapture_INCLUDE_DIRS}
 )
 
@@ -59,6 +61,7 @@ target_link_libraries(third_party_libs INTERFACE
         cameraserver
         ntcore
         wpimath
+        fieldimages
         httplib::httplib
         udev::udev
         OpenPnP::Capture

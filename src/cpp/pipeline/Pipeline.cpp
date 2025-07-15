@@ -8,42 +8,13 @@
 #include <iostream>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <string>
 
 #include "capture/Camera.h"
-
-// (find_optimal_format helper function remains the same)
-static CapFormatID find_optimal_format(const CapContext ctx,
-                                       const CapDeviceID dev_index) {
-  const int num_formats = Cap_getNumFormats(ctx, dev_index);
-  if (num_formats <= 0) {
-    std::cerr << "[ERROR] No camera formats found for device " << dev_index
-              << std::endl;
-    return 0;
-  }
-
-  CapFormatID best_format_id = 0;
-  uint32_t max_data = 0;
-  uint32_t max_bpp = 0;
-
-  for (int i = 0; i < num_formats; ++i) {
-    CapFormatInfo info;
-    if (Cap_getFormatInfo(ctx, dev_index, i, &info) == CAPRESULT_OK) {
-      const uint32_t current_data = info.width * info.height * info.fps;
-      if (current_data > max_data) {
-        max_data = current_data;
-        best_format_id = i;
-      } else if (current_data == max_data) {
-        if (info.bpp > max_bpp) {
-          max_bpp = info.bpp;
-          best_format_id = i;
-        }
-      }
-    }
-  }
-  return best_format_id;
-}
+#include "pipeline/PipelineHelper.h"
+#include "util/PoseUtils.h"
 
 Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
                    const int stream_port, const int control_port)
@@ -113,6 +84,8 @@ void Pipeline::start() {
   if (m_is_running) return;
   m_is_running = true;
   m_capture_thread = std::thread(&Pipeline::capture_loop, this);
+  m_apriltag_detector_thread =
+      std::thread(&Pipeline::apriltag_detector_loop, this);
   m_server_thread = std::thread(&Pipeline::server_loop, this);
 }
 
@@ -122,64 +95,12 @@ void Pipeline::stop() {
   m_server.stop();
   if (m_server_thread.joinable()) m_server_thread.join();
   if (m_capture_thread.joinable()) m_capture_thread.join();
-  // --- NEW: Cleanly join the worker thread on shutdown ---
-  if (m_calibration_worker_thread.joinable()) {
+  if (m_calibration_worker_thread.joinable())
     m_calibration_worker_thread.join();
-  }
+
+  if (m_apriltag_detector_thread.joinable()) m_apriltag_detector_thread.join();
+
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
-}
-
-void Pipeline::start_calibration_session(int squares_x, int squares_y,
-                                         float square_length_m,
-                                         float marker_length_m) {
-  std::lock_guard<std::mutex> lock(m_calibration_mutex);
-  if (m_is_calibrating) {
-    std::cerr << "[" << m_role
-              << "] Cannot start new session while calibration is running."
-              << std::endl;
-    return;
-  }
-  m_calibration_session = std::make_unique<CalibrationSession>(
-      squares_x, squares_y, square_length_m, marker_length_m,
-      cv::aruco::DICT_5X5_250);
-  m_capture_next_frame_for_calib = false;
-
-  // Reset status message
-  std::lock_guard<std::mutex> status_lock(m_calibration_status_mutex);
-  m_calibration_status_message = "Session started. Capture at least 10 frames.";
-}
-
-void Pipeline::add_calibration_frame() {
-  m_capture_next_frame_for_calib = true;
-}
-
-// --- NEW: This function runs in the background worker thread ---
-void Pipeline::async_finish_calibration(const std::string& output_file) {
-  double error;
-  {
-    // Lock the session for the duration of the calculation
-    std::lock_guard<std::mutex> lock(m_calibration_mutex);
-    if (!m_calibration_session) {
-      error = -1.0;  // Should not happen if logic is correct
-    } else {
-      error = m_calibration_session->finish_calibration(output_file);
-      m_calibration_session.reset();  // Clear the session data
-    }
-  }
-
-  // Update the shared status message with the result
-  {
-    std::lock_guard<std::mutex> lock(m_calibration_status_mutex);
-    if (error < 0) {
-      m_calibration_status_message =
-          "ERROR: Calibration failed. Check console for details.";
-    } else {
-      m_calibration_status_message =
-          "OK: Calibration finished for " + output_file +
-          " with reprojection error: " + std::to_string(error);
-    }
-  }
-  m_is_calibrating = false;  // Signal that we are done
 }
 
 void Pipeline::capture_loop() {
@@ -189,26 +110,315 @@ void Pipeline::capture_loop() {
   while (m_is_running) {
     if (m_camera && m_camera->getFrame(frame, timestamp)) {
       cv::cvtColor(frame, frame, cv::COLOR_RGB2BGR);
-      {
+      if (m_is_calibrating) {
         std::lock_guard<std::mutex> lock(m_calibration_mutex);
         if (m_calibration_session) {
-          // Pass the mutable frame to be drawn on
           m_calibration_session->process_frame(frame,
                                                m_capture_next_frame_for_calib);
 
           const std::vector<cv::Point2f> all_points =
               m_calibration_session->get_all_corners();
           for (const auto& point : all_points) {
-            cv::circle(frame, point, 3, cv::Scalar(255, 0, 255), -1);
+            cv::circle(frame, point, 6, cv::Scalar(0, 255, 0), -1);
           }
         }
+      } else {
+        QueuedFrame queuedFrame;
+        queuedFrame.frame = frame.clone();
+        queuedFrame.timestamp = timestamp;
+        {
+          std::lock_guard<std::mutex> lock(m_role_mutex);
+          queuedFrame.cameraRole = m_role;
+        }
+        m_frame_queue.push(queuedFrame);
       }
       if (m_cv_source) m_cv_source->PutFrame(frame);
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
 }
+
+void Pipeline::apriltag_detector_loop() {
+  // --- 1. Initialization (Using OpenCV) ---
+  auto dictionary =
+      cv::aruco::getPredefinedDictionary(cv::aruco::DICT_APRILTAG_36h11);
+  auto detector_params = cv::aruco::DetectorParameters();
+  auto detector = cv::aruco::ArucoDetector(dictionary, detector_params);
+
+  cv::Mat gray_frame;
+
+  // --- 2. Main Processing Loop ---
+  while (m_is_running) {
+    if (QueuedFrame q_frame; m_frame_queue.waitAndPop(q_frame)) {
+      cv::cvtColor(q_frame.frame, gray_frame, cv::COLOR_BGR2GRAY);
+
+      std::vector<int> ids;
+      std::vector<std::vector<cv::Point2f>> corners;
+
+      // Run the OpenCV detector
+      detector.detectMarkers(gray_frame, corners, ids);
+
+      // Only create a data packet if tags were found
+      if (!ids.empty()) {
+        FiducialImageObservation observations;
+        observations.timestamp = q_frame.timestamp;
+        observations.camera_role = q_frame.cameraRole;
+        observations.tag_ids = ids;  // Directly assign the vector of IDs
+
+        // Convert the corners to the required format
+        observations.corners_pixels.reserve(corners.size());
+        for (const auto& tag_corners : corners) {
+          std::vector<double> flat_corners;
+          flat_corners.reserve(8);  // 4 points * 2 coordinates
+          for (const auto& point : tag_corners) {
+            flat_corners.push_back(point.x);
+            flat_corners.push_back(point.y);
+          }
+          observations.corners_pixels.push_back(flat_corners);
+        }
+        // Push all observations from this frame to the pose estimator
+        m_apriltag_detector_result_queue.push(observations);
+      }
+    }
+  }
+}
+
+void Pipeline::pose_estimator_loop() {
+  // --- 1. Initialization ---
+  cv::Mat cameraMatrix;
+  cv::Mat distCoeffs;
+
+  // Load camera intrinsics from the calibration file.
+  if (!PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix,
+                                              distCoeffs)) {
+    std::cerr << "[" << m_role
+              << "] ERROR: Cannot run Pose Estimator without valid "
+                 "calibration. Thread is exiting."
+              << std::endl;
+    return;
+  }
+
+  // This should return a map of tag IDs to their 3D poses (cv::Pose3d).
+  // For now, we'll use an empty map.
+  std::map<int, frc::Pose3d> field_layout =
+      PipelineHelper::load_field_layout("2025 Reefscape");
+  if (field_layout.empty()) {
+    std::cout << "[" << m_role
+              << "] INFO: Field layout not loaded. Multi-tag estimation "
+                 "will be disabled."
+              << std::endl;
+  }
+
+  // Define the 3D coordinates of a standard AprilTag's corners (size in meters)
+  // The order (TL, TR, BR, BL) must match the detector's corner output.
+  constexpr double tag_size_m = 0.1651;  // 6.5 inches
+  const std::vector<cv::Point3f> standard_object_points = {
+      {-tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},  // Top-left
+      {tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},   // Top-right
+      {tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f},  // Bottom-right
+      {-tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f}  // Bottom-left
+  };
+
+  // --- FPS Counter Initialization ---
+  auto last_fps_update_time = std::chrono::steady_clock::now();
+  int frames_since_last_update = 0;
+  double current_fps = 0.0;
+
+  // --- 2. Main Processing Loop ---
+  while (m_is_running) {
+    FiducialImageObservation frame_observation;
+    if (!m_apriltag_detector_result_queue.waitAndPop(frame_observation)) {
+      continue;  // Queue is empty and we are shutting down
+    }
+
+    // --- FPS Calculation ---
+    frames_since_last_update++;
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed_seconds =
+        std::chrono::duration_cast<std::chrono::duration<double>>(
+            now - last_fps_update_time)
+            .count();
+
+    if (elapsed_seconds >= 1.0) {
+      current_fps = frames_since_last_update / elapsed_seconds;
+      frames_since_last_update = 0;
+      last_fps_update_time = now;
+    }
+
+    // This structure will hold all results for the current frame.
+    AprilTagResult result;
+    result.timestamp = frame_observation.timestamp;
+    result.camera_role = m_role;
+    result.fps = current_fps;  // Assign the calculated FPS
+
+    // --- Phase 1: Single-Tag Pose Estimation ---
+    for (size_t i = 0; i < frame_observation.tag_ids.size(); ++i) {
+      // Convert the flat corner vector into a vector of cv::Point2f
+      std::vector<cv::Point2f> image_points;
+      image_points.reserve(4);
+      for (size_t j = 0; j < frame_observation.corners_pixels[i].size();
+           j += 2) {
+        image_points.emplace_back(frame_observation.corners_pixels[i][j],
+                                  frame_observation.corners_pixels[i][j + 1]);
+      }
+
+      // Use IPPE to get the two ambiguous poses for the tag
+      std::vector<cv::Mat> rvecs, tvecs;
+      std::vector<double> errors;
+      cv::solvePnPGeneric(standard_object_points, image_points, cameraMatrix,
+                          distCoeffs, rvecs, tvecs, false,
+                          cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
+                          cv::noArray(), errors);
+
+      // A valid solution must have two poses and corresponding errors.
+      if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
+        FiducialPoseObservation pose;
+        pose.tag_id = frame_observation.tag_ids[i];
+        pose.error_0 = errors[0];
+        pose.pose_0 = PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+        pose.error_1 = errors[1];
+        pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+        result.single_tag_poses.push_back(pose);
+      }
+    }
+
+    if (result.single_tag_poses.empty()) {
+      continue;  // No tags with valid poses, skip to next frame
+    }
+
+    // --- Phase 2: Multi-Tag Pose Estimation ---
+
+    if (!field_layout.empty() && frame_observation.tag_ids.size() > 1) {
+      std::vector<int> tags_used_ids;
+      std::vector<cv::Point2f> all_image_points;
+      std::vector<cv::Point3f> all_object_points;
+      // Define the corner locations in the tag's local frame (X out, Y left, Z
+      // up) Order must match the detector output: TL, TR, BR, BL
+      constexpr auto corner_tl =
+          frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
+                            units::meter_t{tag_size_m / 2.0}},
+                           {});
+      constexpr auto corner_tr =
+          frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
+                            units::meter_t{tag_size_m / 2.0}},
+                           {});
+      constexpr auto corner_br =
+          frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
+                            -units::meter_t{tag_size_m / 2.0}},
+                           {});
+      constexpr auto corner_bl =
+          frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
+                            -units::meter_t{tag_size_m / 2.0}},
+                           {});
+      const std::vector corner_transforms = {corner_tl, corner_tr, corner_br,
+                                             corner_bl};
+
+      for (size_t i = 0; i < frame_observation.tag_ids.size(); ++i) {
+        int tag_id = frame_observation.tag_ids[i];
+
+        if (auto it = field_layout.find(tag_id); it != field_layout.end()) {
+          tags_used_ids.push_back(tag_id);
+          const frc::Pose3d& tag_field_pose = it->second;
+
+          // Calculate the 3D coordinates of each corner in the field frame
+          for (const auto& transform : corner_transforms) {
+            frc::Pose3d corner_field_pose =
+                tag_field_pose.TransformBy(transform);
+            all_object_points.push_back(PoseUtils::wpilibTranslationToOpenCV(
+                corner_field_pose.Translation()));
+          }
+
+          // Add the corresponding 2D image points
+          for (size_t j = 0; j < frame_observation.corners_pixels[i].size();
+               j += 2) {
+            all_image_points.emplace_back(
+                frame_observation.corners_pixels[i][j],
+                frame_observation.corners_pixels[i][j + 1]);
+          }
+        }
+      }
+
+      if (tags_used_ids.size() == 1) {
+        // Use IPPE to get the two ambiguous poses for the tag
+        std::vector<cv::Mat> rvecs, tvecs;
+        std::vector<double> errors;
+        cv::solvePnPGeneric(standard_object_points, all_image_points,
+                            cameraMatrix, distCoeffs, rvecs, tvecs, false,
+                            cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
+                            cv::noArray(), errors);
+
+        // A valid solution must have two poses and corresponding errors.
+        if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
+          FiducialPoseObservation pose;
+          pose.tag_id = frame_observation.tag_ids[0];
+          pose.error_0 = errors[0];
+          pose.error_1 = errors[1];
+
+          auto camera_to_tag_pose_0 =
+              PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+          auto camera_to_tag_pose_1 =
+              PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+
+          frc::Pose3d field_to_tag_pose =
+              field_layout.find(frame_observation.tag_ids[0])->second;
+
+          auto camera_to_tag_0 =
+              frc::Transform3d(camera_to_tag_pose_0.Translation(),
+                               camera_to_tag_pose_0.Rotation());
+          auto camera_to_tag_1 =
+              frc::Transform3d(camera_to_tag_pose_1.Translation(),
+                               camera_to_tag_pose_1.Rotation());
+
+          auto field_to_camera_0 =
+              field_to_tag_pose.TransformBy(camera_to_tag_0.Inverse());
+          auto field_to_camera_1 =
+              field_to_tag_pose.TransformBy(camera_to_tag_1.Inverse());
+
+          auto field_to_camera_pose_0 = frc::Pose3d(
+              field_to_camera_0.Translation(), field_to_camera_0.Rotation());
+          auto field_to_camera_pose_1 = frc::Pose3d(
+              field_to_camera_1.Translation(), field_to_camera_1.Rotation());
+
+          pose.pose_0 = field_to_camera_pose_0;
+          pose.pose_1 = field_to_camera_pose_1;
+
+          result.single_tag_poses.push_back(pose);
+        }
+      } else if (tags_used_ids.size() > 1) {
+        cv::Mat multi_rvec, multi_tvec;
+        std::vector<double> errors;
+
+        // Use a robust solver like SQPNP for a single, stable pose.
+        cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
+                            distCoeffs, multi_rvec, multi_tvec, false,
+                            cv::SOLVEPNP_SQPNP, cv::noArray(), cv::noArray(),
+                            errors);
+
+        // The result of solvePnP is the pose of the field origin in the
+        // camera's frame.
+        frc::Pose3d camera_to_field_pose =
+            PoseUtils::openCvPoseToWpilib(multi_tvec, multi_rvec);
+
+        // We need the inverse: the pose of the camera in the field's frame.
+        auto camera_to_field =
+            frc::Transform3d(camera_to_field_pose.Translation(),
+                             camera_to_field_pose.Rotation());
+        auto field_to_camera = camera_to_field.Inverse();
+        auto field_to_camera_pose = frc::Pose3d(field_to_camera.Translation(),
+                                                field_to_camera.Rotation());
+
+        CameraPoseObservation cam_pose;
+        cam_pose.pose_0 = field_to_camera_pose;
+        cam_pose.error_0 = errors[0];
+        cam_pose.tag_ids = tags_used_ids;
+        result.multi_tag_pose = cam_pose;
+      }
+    }
+
+    m_estimated_poses.push(result);
+  }
+}
+
+void Pipeline::networktables_loop() {}
 
 void Pipeline::server_loop() {
   std::cout << "[" << m_role << "] Control panel server thread started on port "
@@ -382,7 +592,7 @@ void Pipeline::server_loop() {
   // Endpoint to set the role
   m_server.Post(
       "/role/set", [this](const httplib::Request& req, httplib::Response& res) {
-        std::string new_role = req.body;
+        const std::string new_role = req.body;
         if (new_role.empty()) {
           res.status = 400;
           res.set_content("ERROR: Role name cannot be empty.", "text/plain");
@@ -406,8 +616,11 @@ void Pipeline::server_loop() {
       const float square_length_m = json_body.at("square_length_m");
       const float marker_length_m = json_body.at("marker_length_m");
 
-      this->start_calibration_session(squares_x, squares_y, square_length_m,
-                                      marker_length_m);
+      PipelineHelper::start_calibration_session(
+          m_role, m_is_calibrating, m_calibration_mutex, m_calibration_session,
+          m_capture_next_frame_for_calib, m_calibration_status_mutex,
+          m_calibration_status_message, squares_x, squares_y, square_length_m,
+          marker_length_m);
       res.set_content("OK: Calibration session started with new parameters.",
                       "text/plain");
     } catch (const nlohmann::json::exception& e) {
@@ -420,7 +633,7 @@ void Pipeline::server_loop() {
 
   m_server.Post("/calibration/capture", [this](const httplib::Request& req,
                                                httplib::Response& res) {
-    this->add_calibration_frame();
+    PipelineHelper::add_calibration_frame(m_capture_next_frame_for_calib);
     res.set_content("OK: Capture command received.", "text/plain");
   });
 
@@ -464,12 +677,15 @@ void Pipeline::server_loop() {
     std::string filename;
     {
       std::lock_guard<std::mutex> lock(m_role_mutex);
-      filename = m_role + "_calibration.yml";
+      filename = "/var/GompeiVision/" + m_role + "_calibration.yml";
     }
 
     // Launch the heavy computation in a new background thread
-    m_calibration_worker_thread =
-        std::thread(&Pipeline::async_finish_calibration, this, filename);
+    m_calibration_worker_thread = std::thread(
+        &PipelineHelper::async_finish_calibration, std::ref(m_is_calibrating),
+        std::ref(m_calibration_mutex), std::ref(m_calibration_session),
+        std::ref(m_calibration_status_mutex),
+        std::ref(m_calibration_status_message), filename);
 
     res.set_content("OK: Final calibration process started in the background.",
                     "text/plain");
