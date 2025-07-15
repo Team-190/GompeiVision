@@ -1,7 +1,6 @@
 #include "estimator/SingleTagPoseEstimator.h"
 
 #include <frc/geometry/Pose3d.h>
-#include <util/CameraIntrinsics.h>
 #include <util/PoseUtils.h>
 
 #include <opencv2/calib3d.hpp>
@@ -9,57 +8,43 @@
 
 #include "util/QueuedFiducialData.h"
 
-std::optional<FiducialPoseObservation> SingleTagPoseEstimator::estimatePose(
-    const FiducialImageObservation& observation,
-    const CameraIntrinsics& intrinsics, double tag_size_m) {
-  // 1. Define the 3D "object points" for a generic tag of the specified size.
-  double half_tag_size = tag_size_m / 2.0;
-  std::vector<cv::Point3d> object_points;
-  object_points.push_back(cv::Point3d(-half_tag_size, -half_tag_size, 0));
-  object_points.push_back(cv::Point3d(half_tag_size, -half_tag_size, 0));
-  object_points.push_back(cv::Point3d(half_tag_size, half_tag_size, 0));
-  object_points.push_back(cv::Point3d(-half_tag_size, half_tag_size, 0));
+void SingleTagPoseEstimator::estimatePose(
+    const FiducialImageObservation& observation, AprilTagResult& result,
+    const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs,
+    const double tag_size_m) {
+  const std::vector<cv::Point3d> standard_object_points = {
+      {-tag_size_m / 2.0, tag_size_m / 2.0, 0.0f},  // Top-left
+      {tag_size_m / 2.0, tag_size_m / 2.0, 0.0f},   // Top-right
+      {tag_size_m / 2.0, -tag_size_m / 2.0, 0.0f},  // Bottom-right
+      {-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0f}  // Bottom-left
+  };
 
-  // 2. Prepare the camera matrix and distortion coefficients for OpenCV.
-  cv::Mat camera_matrix =
-      (cv::Mat_<double>(3, 3) << intrinsics.fx, 0, intrinsics.cx, 0,
-       intrinsics.fy, intrinsics.cy, 0, 0, 1);
-  auto dist_coeffs = cv::Mat(intrinsics.dist_coeffs);
+  for (size_t i = 0; i < observation.tag_ids.size(); ++i) {
+    // Convert the flat corner vector into a vector of cv::Point2f
+    std::vector<cv::Point2f> image_points;
+    image_points.reserve(4);
+    for (size_t j = 0; j < observation.corners_pixels[i].size(); j += 2) {
+      image_points.emplace_back(observation.corners_pixels[i][j],
+                                observation.corners_pixels[i][j + 1]);
+    }
 
-  // 3. Get the 2D "image points" from the observation.
-  std::vector<cv::Point2d> image_points;
-  for (size_t i = 0; i < observation.corners_pixels.size(); i += 2) {
-    image_points.push_back(cv::Point2d(observation.corners_pixels[i],
-                                       observation.corners_pixels[i + 1]));
+    // Use IPPE to get the two ambiguous poses for the tag
+    std::vector<cv::Mat> rvecs, tvecs;
+    std::vector<double> errors;
+    cv::solvePnPGeneric(standard_object_points, image_points, cameraMatrix,
+                        distCoeffs, rvecs, tvecs, false,
+                        cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(), cv::noArray(),
+                        errors);
+
+    // A valid solution must have two poses and corresponding errors.
+    if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
+      FiducialPoseObservation pose;
+      pose.tag_id = observation.tag_ids[i];
+      pose.error_0 = errors[0];
+      pose.pose_0 = PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+      pose.error_1 = errors[1];
+      pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+      result.single_tag_poses.push_back(pose);
+    }
   }
-
-  if (image_points.size() != 4) {
-    return std::nullopt;  // Must have 4 corners
-  }
-
-  // 4. Use solvePnPGeneric to get multiple possible solutions.
-  std::vector<cv::Mat> rvecs, tvecs;
-  std::vector<double> reprojection_errors;
-  cv::solvePnPGeneric(object_points, image_points, camera_matrix, dist_coeffs,
-                      rvecs, tvecs, false, cv::SOLVEPNP_IPPE_SQUARE,
-                      reprojection_errors);
-
-  if (rvecs.empty()) {
-    return std::nullopt;
-  }
-
-  // 5. Create the result struct.
-  FiducialPoseObservation result;
-  result.tag_id = observation.tag_id;
-
-  // 6. Populate the result with the found poses.
-  result.pose_0 = PoseUtils::rvec_tvec_to_pose3d(rvecs[0], tvecs[0]);
-  result.error_0 = reprojection_errors[0];
-
-  if (reprojection_errors.size() > 1) {
-    result.pose_1 = PoseUtils::rvec_tvec_to_pose3d(rvecs[1], tvecs[1]);
-    result.error_1 = reprojection_errors[1];
-  }
-
-  return result;
 }

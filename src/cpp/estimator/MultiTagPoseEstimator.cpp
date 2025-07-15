@@ -7,123 +7,136 @@
 
 #include "util/PoseUtils.h"
 
-/**
- * @brief Helper function to get the 3D coordinates of a tag's corners in the
- * world frame.
- * @param tag_pose The known 3D pose of the tag on the field.
- * @param tag_size_m The size of the tag in meters.
- * @return A vector of 4 cv::Point3d objects representing the world coordinates
- * of the corners.
- */
-static std::vector<cv::Point3d> get_world_corners(const frc::Pose3d& tag_pose,
-                                                  double tag_size_m) {
-  const double half_size = tag_size_m / 2.0;
+void MultiTagPoseEstimator::estimatePose(
+    const FiducialImageObservation& observation, AprilTagResult& result,
+    const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, double tag_size_m,
+    const std::map<int, frc::Pose3d>& field_layout) {
+  const std::vector<cv::Point3d> standard_object_points = {
+      {-tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},  // Top-left
+      {tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},   // Top-right
+      {tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f},  // Bottom-right
+      {-tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f}  // Bottom-left
+  };
+  if (!field_layout.empty()) {
+    std::vector<int> tags_used_ids;
+    std::vector<cv::Point2f> all_image_points;
+    std::vector<cv::Point3f> all_object_points;
+    // Define the corner locations in the tag's local frame (X out, Y left, Z
+    // up) Order must match the detector output: TL, TR, BR, BL
+    const auto corner_tl =
+        frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
+                          units::meter_t{tag_size_m / 2.0}},
+                         {});
+    const auto corner_tr =
+        frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
+                          units::meter_t{tag_size_m / 2.0}},
+                         {});
+    const auto corner_br =
+        frc::Transform3d({0_m, -units::meter_t{tag_size_m / 2.0},
+                          -units::meter_t{tag_size_m / 2.0}},
+                         {});
+    const auto corner_bl =
+        frc::Transform3d({0_m, units::meter_t{tag_size_m / 2.0},
+                          -units::meter_t{tag_size_m / 2.0}},
+                         {});
+    const std::vector corner_transforms = {corner_tl, corner_tr, corner_br,
+                                           corner_bl};
 
-  // Define the corners in the tag's own local coordinate system (origin at
-  // center, on XY plane)
-  std::vector<frc::Translation3d> local_corners;
-  local_corners.push_back(frc::Translation3d(units::meter_t(-half_size),
-                                             units::meter_t(-half_size),
-                                             units::meter_t(0)));
-  local_corners.push_back(frc::Translation3d(units::meter_t(half_size),
-                                             units::meter_t(-half_size),
-                                             units::meter_t(0)));
-  local_corners.push_back(frc::Translation3d(
-      units::meter_t(half_size), units::meter_t(half_size), units::meter_t(0)));
-  local_corners.push_back(frc::Translation3d(units::meter_t(-half_size),
-                                             units::meter_t(half_size),
-                                             units::meter_t(0)));
+    for (size_t i = 0; i < observation.tag_ids.size(); ++i) {
+      int tag_id = observation.tag_ids[i];
 
-  // Transform each local corner point by the tag's pose to get its world
-  // coordinate
-  std::vector<cv::Point3d> world_corners;
-  for (const auto& corner_translation : local_corners) {
-    // A transform representing just the translation from the tag center to the
-    // corner
-    frc::Transform3d local_transform(corner_translation, frc::Rotation3d());
+      if (auto it = field_layout.find(tag_id); it != field_layout.end()) {
+        tags_used_ids.push_back(tag_id);
+        const frc::Pose3d& tag_field_pose = it->second;
 
-    // Apply this transform to the tag's world pose
-    frc::Pose3d world_corner_pose = tag_pose + local_transform;
+        // Calculate the 3D coordinates of each corner in the field frame
+        for (const auto& transform : corner_transforms) {
+          frc::Pose3d corner_field_pose = tag_field_pose.TransformBy(transform);
+          all_object_points.push_back(PoseUtils::wpilibTranslationToOpenCV(
+              corner_field_pose.Translation()));
+        }
 
-    world_corners.push_back(cv::Point3d(world_corner_pose.X().value(),
-                                        world_corner_pose.Y().value(),
-                                        world_corner_pose.Z().value()));
-  }
-  return world_corners;
-}
-
-std::optional<CameraPoseObservation> MultiTagPoseEstimator::estimatePose(
-    const std::vector<FiducialImageObservation>& observations,
-    const CameraIntrinsics& intrinsics, const FieldLayout& field_layout,
-    double tag_size_m) {
-  std::vector<cv::Point3d> all_object_points;
-  std::vector<cv::Point2d> all_image_points;
-  std::vector<int> all_tag_ids;
-
-  // 1. Collect all the 3D world points and 2D image points from the
-  // observations.
-  for (const auto& [tag_id, corners_pixels] : observations) {
-    auto it = field_layout.find(tag_id);
-    if (it == field_layout.end()) {
-      continue;  // This tag is not on the field layout, so we can't use it.
-    }
-    const frc::Pose3d& tag_pose = it->second;
-
-    std::vector<cv::Point3d> world_corners =
-        get_world_corners(tag_pose, tag_size_m);
-    all_object_points.insert(all_object_points.end(), world_corners.begin(),
-                             world_corners.end());
-
-    for (size_t i = 0; i < corners_pixels.size(); i += 2) {
-      all_image_points.push_back(
-          cv::Point2d(corners_pixels[i], corners_pixels[i + 1]));
+        // Add the corresponding 2D image points
+        for (size_t j = 0; j < observation.corners_pixels[i].size(); j += 2) {
+          all_image_points.emplace_back(observation.corners_pixels[i][j],
+                                        observation.corners_pixels[i][j + 1]);
+        }
+      }
     }
 
-    all_tag_ids.push_back(tag_id);
+    if (tags_used_ids.size() == 1) {
+      // Use IPPE to get the two ambiguous poses for the tag
+      std::vector<cv::Mat> rvecs, tvecs;
+      std::vector<double> errors;
+      cv::solvePnPGeneric(standard_object_points, all_image_points,
+                          cameraMatrix, distCoeffs, rvecs, tvecs, false,
+                          cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
+                          cv::noArray(), errors);
+
+      // A valid solution must have two poses and corresponding errors.
+      if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
+        FiducialPoseObservation pose;
+        pose.tag_id = observation.tag_ids[0];
+        pose.error_0 = errors[0];
+        pose.error_1 = errors[1];
+
+        auto camera_to_tag_pose_0 =
+            PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+        auto camera_to_tag_pose_1 =
+            PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+
+        frc::Pose3d field_to_tag_pose =
+            field_layout.find(observation.tag_ids[0])->second;
+
+        auto camera_to_tag_0 =
+            frc::Transform3d(camera_to_tag_pose_0.Translation(),
+                             camera_to_tag_pose_0.Rotation());
+        auto camera_to_tag_1 =
+            frc::Transform3d(camera_to_tag_pose_1.Translation(),
+                             camera_to_tag_pose_1.Rotation());
+
+        auto field_to_camera_0 =
+            field_to_tag_pose.TransformBy(camera_to_tag_0.Inverse());
+        auto field_to_camera_1 =
+            field_to_tag_pose.TransformBy(camera_to_tag_1.Inverse());
+
+        auto field_to_camera_pose_0 = frc::Pose3d(
+            field_to_camera_0.Translation(), field_to_camera_0.Rotation());
+        auto field_to_camera_pose_1 = frc::Pose3d(
+            field_to_camera_1.Translation(), field_to_camera_1.Rotation());
+
+        pose.pose_0 = field_to_camera_pose_0;
+        pose.pose_1 = field_to_camera_pose_1;
+
+        result.single_tag_poses.push_back(pose);
+      }
+    } else if (tags_used_ids.size() > 1) {
+      cv::Mat multi_rvec, multi_tvec;
+      std::vector<double> errors;
+
+      // Use a robust solver like SQPNP for a single, stable pose.
+      cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
+                          distCoeffs, multi_rvec, multi_tvec, false,
+                          cv::SOLVEPNP_SQPNP, cv::noArray(), cv::noArray(),
+                          errors);
+
+      // The result of solvePnP is the pose of the field origin in the
+      // camera's frame.
+      frc::Pose3d camera_to_field_pose =
+          PoseUtils::openCvPoseToWpilib(multi_tvec, multi_rvec);
+
+      // We need the inverse: the pose of the camera in the field's frame.
+      auto camera_to_field = frc::Transform3d(
+          camera_to_field_pose.Translation(), camera_to_field_pose.Rotation());
+      auto field_to_camera = camera_to_field.Inverse();
+      auto field_to_camera_pose = frc::Pose3d(field_to_camera.Translation(),
+                                              field_to_camera.Rotation());
+
+      CameraPoseObservation cam_pose;
+      cam_pose.pose_0 = field_to_camera_pose;
+      cam_pose.error_0 = errors[0];
+      cam_pose.tag_ids = tags_used_ids;
+      result.multi_tag_pose = cam_pose;
+    }
   }
-
-  if (all_object_points.size() < 4) {
-    return std::nullopt;
-  }
-
-  // 2. Prepare the camera matrix and distortion coefficients.
-  cv::Mat camera_matrix =
-      (cv::Mat_<double>(3, 3) << intrinsics.fx, 0, intrinsics.cx, 0,
-       intrinsics.fy, intrinsics.cy, 0, 0, 1);
-  auto dist_coeffs = cv::Mat(intrinsics.dist_coeffs);
-
-  // 3. Run a single, high-quality solvePnP with all the points.
-  cv::Mat rvec, tvec;
-  cv::solvePnP(all_object_points, all_image_points, camera_matrix, dist_coeffs,
-               rvec, tvec, false, cv::SOLVEPNP_SQPNP);
-
-  // 4. Convert the result to the final camera pose.
-  frc::Pose3d field_origin_in_camera_frame =
-      PoseUtils::rvec_tvec_to_pose3d(rvec, tvec);
-  frc::Transform3d transform_field_to_camera(
-      field_origin_in_camera_frame.Translation(),
-      field_origin_in_camera_frame.Rotation());
-  frc::Transform3d transform_camera_to_field =
-      transform_field_to_camera.Inverse();
-  frc::Pose3d camera_in_field_pose(transform_camera_to_field.Translation(),
-                                   transform_camera_to_field.Rotation());
-
-  std::vector<cv::Point2d> reprojected_points;
-  cv::projectPoints(all_object_points, rvec, tvec, camera_matrix, dist_coeffs,
-                    reprojected_points);
-
-  double total_error = 0.0;
-  for (size_t i = 0; i < all_image_points.size(); ++i) {
-    // Calculate the Euclidean distance between the original detected point
-    // and the reprojected point.
-    total_error += cv::norm(all_image_points[i] - reprojected_points[i]);
-  }
-  double average_error = total_error / all_image_points.size();
-
-  CameraPoseObservation final_observation;
-  final_observation.tag_ids = all_tag_ids;
-  final_observation.pose_0 = camera_in_field_pose;
-  final_observation.error_0 = average_error;  // Populate the error field
-
-  return final_observation;
 }

@@ -61,7 +61,7 @@ target_link_libraries(third_party_libs INTERFACE
         cameraserver
         ntcore
         wpimath
-        fieldimages
+        fieldImages
         httplib::httplib
         udev::udev
         OpenPnP::Capture

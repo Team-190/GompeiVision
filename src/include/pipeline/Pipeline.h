@@ -12,6 +12,7 @@
 #include "calibrator/CalibrationSession.h"
 #include "capture/Camera.h"
 #include "cscore_cv.h"
+#include "detector/FiducialDetector.h"
 #include "util/QueuedFiducialData.h"
 #include "util/QueuedFrame.h"
 #include "util/ThreadSafeQueue.h"
@@ -75,6 +76,8 @@ class Pipeline {
   void networktables_loop();
   void server_loop();
 
+  std::map<int, frc::Pose3d> m_field;
+
   std::string m_hardware_id;
   std::string m_role;
   int m_control_port;
@@ -102,6 +105,9 @@ class Pipeline {
   std::atomic<bool> m_is_calibrating{false};
   std::string m_calibration_status_message;
   std::mutex m_calibration_status_mutex;
+
+  // --- Detectors ---
+  FiducialDetector m_AprilTagDetector;
 
   // --- Pipeline Data Flow ---
   ThreadSafeQueue<QueuedFrame> m_frame_queue;

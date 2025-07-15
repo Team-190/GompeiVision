@@ -5,6 +5,8 @@
 #include <iostream>
 #include <opencv2/imgproc.hpp>  // For cvtColor
 
+#include "util/QueuedFrame.h"
+
 FiducialDetector::FiducialDetector() {
   std::cout << "[FiducialDetector] Initializing..." << std::endl;
   // Create the tag family (e.g., tag36h11)
@@ -46,20 +48,19 @@ FiducialDetector::~FiducialDetector() {
   }
 }
 
-std::vector<FiducialImageObservation> FiducialDetector::detect(
-    const cv::Mat& frame) const {
-  std::vector<FiducialImageObservation> observations;
-  if (!tagDetector || frame.empty()) {
-    return observations;
+void FiducialDetector::detect(const QueuedFrame& frame,
+                              FiducialImageObservation& observation) const {
+  if (!tagDetector || frame.frame.empty()) {
+    return;
   }
 
   // 1. Convert the input OpenCV Mat to the grayscale image_u8_t format
   //    that the AprilTag library requires.
   cv::Mat gray_frame;
-  if (frame.channels() == 3) {
-    cv::cvtColor(frame, gray_frame, cv::COLOR_BGR2GRAY);
+  if (frame.frame.channels() == 3) {
+    cv::cvtColor(frame.frame, gray_frame, cv::COLOR_BGR2GRAY);
   } else {
-    gray_frame = frame;
+    gray_frame = frame.frame;
   }
 
   image_u8_t img_header = {.width = gray_frame.cols,
@@ -75,24 +76,23 @@ std::vector<FiducialImageObservation> FiducialDetector::detect(
     apriltag_detection_t* det;
     zarray_get(detections, i, &det);
 
-    FiducialImageObservation obs;
-    obs.tag_id = det->id;
+    observation.tag_ids.push_back(det->id);
 
     // Add the corner points to the flat vector
-    obs.corners_pixels.push_back(det->p[0][0]);
-    obs.corners_pixels.push_back(det->p[0][1]);
-    obs.corners_pixels.push_back(det->p[1][0]);
-    obs.corners_pixels.push_back(det->p[1][1]);
-    obs.corners_pixels.push_back(det->p[2][0]);
-    obs.corners_pixels.push_back(det->p[2][1]);
-    obs.corners_pixels.push_back(det->p[3][0]);
-    obs.corners_pixels.push_back(det->p[3][1]);
+    std::vector<double> flat_corners;
+    flat_corners.reserve(8);
+    flat_corners.push_back(det->p[0][0]);
+    flat_corners.push_back(det->p[0][1]);
+    flat_corners.push_back(det->p[1][0]);
+    flat_corners.push_back(det->p[1][1]);
+    flat_corners.push_back(det->p[2][0]);
+    flat_corners.push_back(det->p[2][1]);
+    flat_corners.push_back(det->p[3][0]);
+    flat_corners.push_back(det->p[3][1]);
 
-    observations.push_back(obs);
+    observation.corners_pixels.push_back(flat_corners);
   }
 
   // 4. Clean up the memory used by the detections array.
   apriltag_detections_destroy(detections);
-
-  return observations;
 }

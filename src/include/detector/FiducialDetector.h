@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "util/QueuedFiducialData.h"
+#include "util/QueuedFrame.h"
 
 /**
  * @class FiducialDetector
@@ -26,11 +27,14 @@ class FiducialDetector {
 
   /**
    * @brief Detects all AprilTags in a given frame.
-   * @param frame The input image (will be converted to grayscale if necessary).
+   * @param frame The input image (will be converted to grayscale if
+   * necessary).
+   * @param observation A reference to the current image observation
    * @return A vector of FiducialImageObservation structs, one for each tag
    * found.
    */
-  std::vector<FiducialImageObservation> detect(const cv::Mat& frame) const;
+  void detect(const QueuedFrame& frame,
+              FiducialImageObservation& observation) const;
 
  private:
   apriltag_detector_t* tagDetector = nullptr;
