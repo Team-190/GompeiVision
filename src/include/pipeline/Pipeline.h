@@ -12,6 +12,9 @@
 #include "calibrator/CalibrationSession.h"
 #include "capture/Camera.h"
 #include "cscore_cv.h"
+#include "util/QueuedFiducialData.h"
+#include "util/QueuedFrame.h"
+#include "util/ThreadSafeQueue.h"
 
 struct CapContextDeleter {
   void operator()(CapContext ctx) const {
@@ -25,6 +28,37 @@ struct UdevContextDeleter {
   }
 };
 
+static CapFormatID find_optimal_format(const CapContext ctx,
+                                       const CapDeviceID dev_index) {
+  const int num_formats = Cap_getNumFormats(ctx, dev_index);
+  if (num_formats <= 0) {
+    std::cerr << "[ERROR] No camera formats found for device " << dev_index
+              << std::endl;
+    return 0;
+  }
+
+  CapFormatID best_format_id = 0;
+  uint32_t max_data = 0;
+  uint32_t max_bpp = 0;
+
+  for (int i = 0; i < num_formats; ++i) {
+    CapFormatInfo info;
+    if (Cap_getFormatInfo(ctx, dev_index, i, &info) == CAPRESULT_OK) {
+      if (const uint32_t current_data = info.width * info.height * info.fps;
+          current_data > max_data) {
+        max_data = current_data;
+        best_format_id = i;
+      } else if (current_data == max_data) {
+        if (info.bpp > max_bpp) {
+          max_bpp = info.bpp;
+          best_format_id = i;
+        }
+      }
+    }
+  }
+  return best_format_id;
+}
+
 class Pipeline {
  public:
   Pipeline(const std::string& hardware_id, const std::string& role,
@@ -36,16 +70,11 @@ class Pipeline {
 
  private:
   void capture_loop();
+  void apriltag_detector_loop();
+  void pose_estimator_loop();
+  void networktables_loop();
   void server_loop();
 
-  void start_calibration_session(int squares_x, int squares_y,
-                                 float square_length_m, float marker_length_m);
-  void add_calibration_frame();
-
-  // --- NEW: Worker function for background processing ---
-  void async_finish_calibration(const std::string& output_file);
-
-  // Member Variables
   std::string m_hardware_id;
   std::string m_role;
   int m_control_port;
@@ -68,14 +97,20 @@ class Pipeline {
   std::atomic<bool> m_capture_next_frame_for_calib{false};
   std::mutex m_calibration_mutex;
 
-  // --- NEW: State for the asynchronous calibration worker ---
+  // --- calibration worker ---
   std::thread m_calibration_worker_thread;
   std::atomic<bool> m_is_calibrating{false};
   std::string m_calibration_status_message;
   std::mutex m_calibration_status_mutex;
 
+  // --- Pipeline Data Flow ---
+  ThreadSafeQueue<QueuedFrame> m_frame_queue;
+  ThreadSafeQueue<FiducialImageObservation> m_apriltag_detector_result_queue;
+  ThreadSafeQueue<AprilTagResult> m_estimated_poses;
+
   // Threads & Control
   std::thread m_capture_thread;
+  std::thread m_apriltag_detector_thread;
   std::thread m_server_thread;
   std::atomic<bool> m_is_running{false};
 };

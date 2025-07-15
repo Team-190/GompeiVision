@@ -9,12 +9,14 @@
 
 /**
  * @struct FiducialImageObservation
- * @brief The raw 2D detection of a single tag in an image.
+ * @brief The raw 2D detection of tags in an image.
  */
 struct FiducialImageObservation {
-  int tag_id;
-  // Corners stored as a flat vector [x1, y1, x2, y2, x3, y3, x4, y4]
-  std::vector<double> corners_pixels;
+  std::vector<int> tag_ids;
+  // Corners stored as as vectors [x1, y1, x2, y2, x3, y3, x4, y4]
+  std::vector<std::vector<double>> corners_pixels;
+  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+  std::string camera_role;
 };
 
 /**
@@ -62,6 +64,7 @@ struct TagAngleObservation {
  * pipeline for a single captured frame.
  */
 struct AprilTagResult {
+  std::vector<int> tags;
   std::string camera_role;
   std::chrono::time_point<std::chrono::steady_clock> timestamp;
   int fps;
