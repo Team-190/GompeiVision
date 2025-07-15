@@ -32,6 +32,9 @@ class ThreadSafeQueue {
     std::lock_guard<std::mutex> lock(mutex);
 
     // Add the item to the queue
+    if (queue.size() >= maxQueue && maxQueue != -1) {
+      return;
+    }
     queue.push(item);
 
     // Notify one waiting thread that an item is available
@@ -88,9 +91,12 @@ class ThreadSafeQueue {
     condVar.notify_all();
   }
 
+  void setMaxQueue(const int max) { maxQueue = max; }
+
  private:
   std::queue<T> queue;
   mutable std::mutex mutex;
   std::condition_variable condVar;
   bool isShutdown = false;
+  int maxQueue = -1;
 };

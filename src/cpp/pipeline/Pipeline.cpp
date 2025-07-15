@@ -76,6 +76,7 @@ Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
             << m_stream_port << std::endl;
 
   m_field = PipelineHelper::load_field_layout("2025 Reefscape");
+  m_frame_queue.setMaxQueue(10);
 }
 
 Pipeline::~Pipeline() {
@@ -89,6 +90,8 @@ void Pipeline::start() {
   m_capture_thread = std::thread(&Pipeline::capture_loop, this);
   m_apriltag_detector_thread =
       std::thread(&Pipeline::apriltag_detector_loop, this);
+  m_pose_estimator_thread = std::thread(&Pipeline::pose_estimator_loop, this);
+  m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
   m_server_thread = std::thread(&Pipeline::server_loop, this);
 }
 
@@ -96,12 +99,14 @@ void Pipeline::stop() {
   if (!m_is_running) return;
   m_is_running = false;
   m_server.stop();
-  if (m_server_thread.joinable()) m_server_thread.join();
   if (m_capture_thread.joinable()) m_capture_thread.join();
+  if (m_apriltag_detector_thread.joinable()) m_apriltag_detector_thread.join();
+  if (m_pose_estimator_thread.joinable()) m_pose_estimator_thread.join();
+  if (m_networktables_thread.joinable()) m_networktables_thread.join();
+  if (m_server_thread.joinable()) m_server_thread.join();
+
   if (m_calibration_worker_thread.joinable())
     m_calibration_worker_thread.join();
-
-  if (m_apriltag_detector_thread.joinable()) m_apriltag_detector_thread.join();
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
@@ -150,6 +155,9 @@ void Pipeline::apriltag_detector_loop() {
     FiducialImageObservation observation;
     observation.timestamp = frame.timestamp;
     m_AprilTagDetector.detect(frame, observation);
+    if (!observation.tag_ids.empty()) {
+      m_apriltag_detector_result_queue.push(observation);
+    }
   }
 }
 
@@ -207,6 +215,9 @@ void Pipeline::pose_estimator_loop() {
       last_fps_update_time = now;
     }
 
+    std::cout << "[" << m_role << "] Processing FPS: " << std::fixed
+              << std::setprecision(2) << current_fps << std::endl;
+
     // This structure will hold all results for the current frame.
     AprilTagResult result;
     result.timestamp = frame_observation.timestamp;
@@ -225,7 +236,12 @@ void Pipeline::pose_estimator_loop() {
   }
 }
 
-void Pipeline::networktables_loop() {}
+void Pipeline::networktables_loop() {
+  while (m_is_running && !m_is_calibrating) {
+    AprilTagResult result;
+    m_estimated_poses.waitAndPop(result);
+  }
+}
 
 void Pipeline::server_loop() {
   std::cout << "[" << m_role << "] Control panel server thread started on port "
