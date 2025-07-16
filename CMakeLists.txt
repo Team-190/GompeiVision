@@ -28,8 +28,7 @@ file(GLOB SYSTEM_LIBS
         "/usr/lib/x86_64-linux-gnu/libprotobuf.so*"
         "/usr/lib/x86_64-linux-gnu/libavcodec.so.58"
         "/usr/lib/x86_64-linux-gnu/libavformat.so.58"
-        "/usr/lib/x86_64-linux-gnu/libswscale.so*"
-
+        "/usr/lib/x86_64-linux-gnu/libswscale.so.5"
 )
 
 install(FILES ${SYSTEM_LIBS}
