@@ -5,6 +5,8 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all system dependencies required for the base OS and for building our dependencies
+RUN apt-get update && apt-get upgrade -y
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -39,6 +41,11 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-numpy \
     gdb \
+    ffmpeg \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
