@@ -1,5 +1,6 @@
 #include "calibrator/CalibrationSession.h"
 
+#include <filesystem>
 #include <iostream>
 #include <opencv2/calib3d.hpp>
 
@@ -82,6 +83,17 @@ double CalibrationSession::finish_calibration(
       camera_matrix, dist_coeffs, rvecs, tvecs);
 
   // Save the results to a file
+  std::string output_directory = "~/GompeiVision";
+  if (!std::filesystem::exists(output_directory)) {
+    try {
+      std::filesystem::create_directories(output_directory);
+    } catch (const std::exception& e) {
+      std::cerr << "[CalibrationSession] ERROR: Failed to create directory "
+                << output_directory << ": " << e.what() << std::endl;
+      return -1.0;
+    }
+  }
+
   cv::FileStorage fs(output_file, cv::FileStorage::WRITE);
   if (!fs.isOpened()) {
     std::cerr << "[CalibrationSession] ERROR: Could not open output file: "

@@ -26,6 +26,10 @@ install(DIRECTORY /usr/local/lib/
 file(GLOB SYSTEM_LIBS
         LIST_DIRECTORIES false
         "/usr/lib/x86_64-linux-gnu/libprotobuf.so*"
+        "/usr/lib/x86_64-linux-gnu/libavcodec.so.58"
+        "/usr/lib/x86_64-linux-gnu/libavformat.so.58"
+        "/usr/lib/x86_64-linux-gnu/libswscale.so*"
+
 )
 
 install(FILES ${SYSTEM_LIBS}

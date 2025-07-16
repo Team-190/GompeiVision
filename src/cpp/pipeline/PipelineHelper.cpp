@@ -72,12 +72,11 @@ bool PipelineHelper::load_camera_intrinsics(const std::string& role,
                                             cv::Mat& distCoeffs) {
   {
     try {
-      cv::FileStorage fs("/var/GompeiVision/" + role + "_calibration.yml",
+      cv::FileStorage fs("~/GompeiVision/" + role + "_calibration.yml",
                          cv::FileStorage::READ);
       if (!fs.isOpened()) {
         std::cerr << "[" << role << "] ERROR: Could not open calibration file: "
-                  << "/var/GompeiVision/" + role + "_calibration.yml"
-                  << std::endl;
+                  << "~/GompeiVision/" + role + "_calibration.yml" << std::endl;
         return false;
       }
       fs["camera_matrix"] >> cameraMatrix;
