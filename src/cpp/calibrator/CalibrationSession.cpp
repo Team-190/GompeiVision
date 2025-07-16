@@ -83,13 +83,18 @@ double CalibrationSession::finish_calibration(
       camera_matrix, dist_coeffs, rvecs, tvecs);
 
   // Save the results to a file
-  std::string output_directory = "~/GompeiVision";
-  if (!std::filesystem::exists(output_directory)) {
+  // Ensure the output directory exists before writing the file.
+  const std::filesystem::path output_path(output_file);
+
+  if (const std::filesystem::path output_dir = output_path.parent_path();
+      !output_dir.empty() && !std::filesystem::exists(output_dir)) {
     try {
-      std::filesystem::create_directories(output_directory);
-    } catch (const std::exception& e) {
+      std::filesystem::create_directories(output_dir);
+      std::cout << "[CalibrationSession] Created output directory: "
+                << output_dir.string() << std::endl;
+    } catch (const std::filesystem::filesystem_error& e) {
       std::cerr << "[CalibrationSession] ERROR: Failed to create directory "
-                << output_directory << ": " << e.what() << std::endl;
+                << output_dir.string() << ": " << e.what() << std::endl;
       return -1.0;
     }
   }

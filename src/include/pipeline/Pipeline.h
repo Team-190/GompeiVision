@@ -4,8 +4,6 @@
 #include <libudev.h>
 
 #include <atomic>
-#include <cstring>
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -15,8 +13,8 @@
 #include "capture/Camera.h"
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
+#include "networktables//NetworkTablesInterface.h"
 #include "util/QueuedFiducialData.h"
-#include "util/QueuedFrame.h"
 #include "util/ThreadSafeQueue.h"
 
 struct UdevContextDeleter {
@@ -28,7 +26,7 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const int deviceIndex, const std::string& hardware_id,
-           const int width, const int height, const bool useMJPG,
+           const int width, const int height, const bool setup_mode,
            const std::string& role, const int stream_port,
            const int control_port);
   ~Pipeline();
@@ -37,9 +35,7 @@ class Pipeline {
   void stop();
 
  private:
-  void capture_loop();
-  void apriltag_detector_loop();
-  void pose_estimator_loop();
+  void processing_loop();
   void networktables_loop();
   void server_loop();
 
@@ -57,7 +53,7 @@ class Pipeline {
   std::unique_ptr<Camera> m_camera;
 
   httplib::Server m_server;
-  cs::MjpegServer m_mjpeg_server;
+  std::unique_ptr<cs::MjpegServer> m_mjpeg_server;
   std::unique_ptr<cs::CvSource> m_cv_source;
 
   // Calibration state
@@ -75,15 +71,15 @@ class Pipeline {
   FiducialDetector m_AprilTagDetector;
 
   // --- Pipeline Data Flow ---
-  ThreadSafeQueue<QueuedFrame> m_frame_queue;
-  ThreadSafeQueue<FiducialImageObservation> m_apriltag_detector_result_queue;
   ThreadSafeQueue<AprilTagResult> m_estimated_poses;
 
   // Threads & Control
-  std::thread m_capture_thread;
-  std::thread m_apriltag_detector_thread;
-  std::thread m_pose_estimator_thread;
+  std::thread m_processing_thread;
   std::thread m_networktables_thread;
   std::thread m_server_thread;
   std::atomic<bool> m_is_running{false};
+  bool m_is_setup_mode;
+
+  // --- NetworkTables Interface ---
+  std::unique_ptr<NetworkTablesInterface> m_nt_interface;
 };
