@@ -56,6 +56,20 @@ Camera::Camera(const int deviceIndex, const std::string& hardwareID,
     logError("Warning: Could not disable auto-exposure.");
   }
 
+  // Log the actual format the camera has settled on.
+  int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
+  if (fourcc != 0) {
+    // Decode the FourCC integer into a human-readable string.
+    std::string formatStr;
+    formatStr += (fourcc & 0XFF);
+    formatStr += ((fourcc >> 8) & 0XFF);
+    formatStr += ((fourcc >> 16) & 0XFF);
+    formatStr += ((fourcc >> 24) & 0XFF);
+    logInfo("Actual camera format in use: " + formatStr);
+  } else {
+    logError("Could not retrieve camera format.");
+  }
+
   // Retrieve the actual frame dimensions, as the camera might not support the
   // exact requested size.
   m_width = static_cast<int>(m_capture.get(cv::CAP_PROP_FRAME_WIDTH));

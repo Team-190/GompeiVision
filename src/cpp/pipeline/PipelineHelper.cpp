@@ -70,13 +70,19 @@ void PipelineHelper::async_finish_calibration(
 bool PipelineHelper::load_camera_intrinsics(const std::string& role,
                                             cv::Mat& cameraMatrix,
                                             cv::Mat& distCoeffs) {
-  {
+  std::string file_path;
+  const char* home_dir = getenv("HOME");
+  if (home_dir) {
+    file_path =
+        std::string(home_dir) + "/GompeiVision/" + role + "_calibration.yml";
+  } else {
+    file_path = role + "_calibration.yml"; // Fallback to current directory
+  }
     try {
-      cv::FileStorage fs("~/GompeiVision/" + role + "_calibration.yml",
-                         cv::FileStorage::READ);
+      cv::FileStorage fs(file_path, cv::FileStorage::READ);
       if (!fs.isOpened()) {
         std::cerr << "[" << role << "] ERROR: Could not open calibration file: "
-                  << "~/GompeiVision/" + role + "_calibration.yml" << std::endl;
+                  << file_path << std::endl;
         return false;
       }
       fs["camera_matrix"] >> cameraMatrix;
@@ -90,7 +96,6 @@ bool PipelineHelper::load_camera_intrinsics(const std::string& role,
       return false;
     }
     return true;
-  }
 }
 
 std::map<int, frc::Pose3d> PipelineHelper::load_field_layout(

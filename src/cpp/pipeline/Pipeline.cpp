@@ -15,21 +15,25 @@
 #include "capture/Camera.h"
 #include "estimator/MultiTagPoseEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
+#include "networktables/NetworkTablesInterface.h"
 #include "pipeline/PipelineHelper.h"
 
 Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
-                   const int width, const int height, const bool useMJPG,
+                   const int width, const int height, const bool setup_mode,
                    const std::string& role, const int stream_port,
                    const int control_port)
     : m_hardware_id(hardware_id),
       m_role(role),
       m_control_port(control_port),
       m_stream_port(stream_port),
-      m_mjpeg_server(role + "_stream", stream_port) {
+      m_is_setup_mode(setup_mode) {
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
+  // In setup mode, the camera captures in MJPG for streaming.
+  // Otherwise, YUYV is preferred for performance.
+  const bool use_camera_mjpg = m_is_setup_mode;
   m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, width, height,
-                                      useMJPG);
+                                      use_camera_mjpg);
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -40,24 +44,33 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   m_stream_width = m_camera->getWidth();
   m_stream_height = m_camera->getHeight();
 
-  m_cv_source = std::make_unique<cs::CvSource>(
-      role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
-      m_stream_height, 30);
+  // The server and stream are only initialized and run in setup mode.
+  if (m_is_setup_mode) {
+    std::cout << "[" << m_role << "] Setup mode enabled. Initializing servers."
+              << std::endl;
+    m_mjpeg_server =
+        std::make_unique<cs::MjpegServer>(role + "_stream", stream_port);
+    m_cv_source = std::make_unique<cs::CvSource>(
+        role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
+        m_stream_height, 30);
 
-  CS_Status status = 0;
-  cs::SetSinkSource(m_mjpeg_server.GetHandle(), m_cv_source.get()->GetHandle(),
-                    &status);
+    CS_Status status = 0;
+    cs::SetSinkSource(m_mjpeg_server->GetHandle(),
+                      m_cv_source.get()->GetHandle(), &status);
 
-  std::cout << "[" << m_role << "] MJPEG stream available at port "
-            << m_stream_port << std::endl;
+    std::cout << "[" << m_role << "] MJPEG stream available at port "
+              << m_stream_port << std::endl;
+  }
 
   m_field = PipelineHelper::load_field_layout("2025 Reefscape");
-  m_frame_queue.setMaxQueue(10);
-  if (auto res = m_camera->setExposure(100)) {
+  if (auto res = m_camera->setExposure(50)) {
     std::cout << "[" << m_role << "] Exposure set to 50." << std::endl;
   } else {
     std::cout << "[" << m_role << "] Failed to set exposure" << std::endl;
   }
+
+  // Initialize the NetworkTables interface
+  m_nt_interface = std::make_unique<NetworkTablesInterface>(m_role);
 }
 
 Pipeline::~Pipeline() {
@@ -68,12 +81,11 @@ Pipeline::~Pipeline() {
 void Pipeline::start() {
   if (m_is_running) return;
   m_is_running = true;
-  m_capture_thread = std::thread(&Pipeline::capture_loop, this);
-  m_apriltag_detector_thread =
-      std::thread(&Pipeline::apriltag_detector_loop, this);
-  m_pose_estimator_thread = std::thread(&Pipeline::pose_estimator_loop, this);
+  m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
-  m_server_thread = std::thread(&Pipeline::server_loop, this);
+  if (m_is_setup_mode) {
+    m_server_thread = std::thread(&Pipeline::server_loop, this);
+  }
 }
 
 void Pipeline::stop() {
@@ -83,16 +95,15 @@ void Pipeline::stop() {
   // Unblock any threads that might be waiting on blocking operations like
   // queues or the server's listen call. This prevents deadlocks during
   // shutdown.
-  m_frame_queue.shutdown();
-  m_apriltag_detector_result_queue.shutdown();
   m_estimated_poses.shutdown();
-  m_server.stop();
+  if (m_is_setup_mode) {
+    m_server.stop();
+  }
 
   // Now that all threads have been signaled to stop and unblocked, join them.
-  if (m_capture_thread.joinable()) m_capture_thread.join();
-  if (m_apriltag_detector_thread.joinable()) m_apriltag_detector_thread.join();
-  if (m_pose_estimator_thread.joinable()) m_pose_estimator_thread.join();
+  if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
+  // The server thread is only created in setup mode
   if (m_server_thread.joinable()) m_server_thread.join();
 
   if (m_calibration_worker_thread.joinable())
@@ -100,133 +111,115 @@ void Pipeline::stop() {
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
 
-void Pipeline::capture_loop() {
-  cv::Mat frame;
-  std::chrono::time_point<std::chrono::steady_clock> timestamp;
-
-  while (m_is_running) {
-    if (m_camera && m_camera->getFrame(frame, timestamp)) {
-      cv::cvtColor(frame, frame, cv::COLOR_RGB2BGR);
-      std::lock_guard<std::mutex> lock(m_calibration_mutex);
-      if (m_calibration_session) {
-        m_calibration_session->process_frame(frame,
-                                             m_capture_next_frame_for_calib);
-
-        const std::vector<cv::Point2f> all_points =
-            m_calibration_session->get_all_corners();
-        for (const auto& point : all_points) {
-          cv::circle(frame, point, 6, cv::Scalar(0, 255, 0), -1);
-        }
-      }
-      {
-        QueuedFrame queuedFrame;
-        queuedFrame.frame = frame.clone();
-        queuedFrame.timestamp = timestamp;
-        {
-          std::lock_guard<std::mutex> role_lock(m_role_mutex);
-          queuedFrame.cameraRole = m_role;
-        }
-        m_frame_queue.push(queuedFrame);
-      }
-      if (m_cv_source) m_cv_source->PutFrame(frame);
-    }
-  }
-}
-
-void Pipeline::apriltag_detector_loop() {
-  while (m_is_running) {
-    // if (m_is_calibrating.load()) continue;
-    QueuedFrame frame;
-    if (!m_frame_queue.waitAndPop(frame)) {
-      continue;  // Queue is empty and we are shutting down
-    }
-
-    FiducialImageObservation observation;
-    observation.timestamp = frame.timestamp;
-    m_AprilTagDetector.detect(frame, observation);
-    if (!observation.tag_ids.empty()) {
-      m_apriltag_detector_result_queue.push(observation);
-    }
-  }
-}
-
-void Pipeline::pose_estimator_loop() {
+void Pipeline::processing_loop() {
   // --- 1. Initialization ---
   cv::Mat cameraMatrix;
   cv::Mat distCoeffs;
+  bool intrinsics_loaded = false;
 
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
-  constexpr double alpha = 0.05;  // Smoothing factor for EMA
 
   // Load camera intrinsics from the calibration file.
-  if (!PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix,
-                                              distCoeffs)) {
+  intrinsics_loaded =
+      PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix, distCoeffs);
+  if (!intrinsics_loaded) {
     std::cerr << "[" << m_role
-              << "] ERROR: Cannot run Pose Estimator without valid "
-                 "calibration. Thread is exiting."
+              << "] WARNING: Cannot run Pose Estimator without valid "
+                 "calibration. Pose estimation will be disabled."
               << std::endl;
-    return;
   }
 
   // This should return a map of tag IDs to their 3D poses (cv::Pose3d).
   // For now, we'll use an empty map.
 
-  // Define the 3D coordinates of a standard AprilTag's corners (size in meters)
-  // The order (TL, TR, BR, BL) must match the detector's corner output.
-  constexpr double tag_size_m = 0.1651;  // 6.5 inches
-  const std::vector<cv::Point3f> standard_object_points = {
-      {-tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},  // Top-left
-      {tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},   // Top-right
-      {tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f},  // Bottom-right
-      {-tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f}  // Bottom-left
-  };
+  QueuedFrame frame;
+  std::chrono::time_point<std::chrono::steady_clock> timestamp;
 
   // --- 2. Main Processing Loop ---
   while (m_is_running) {
+    constexpr double alpha = 0.05;
+    // For periodic logging, to avoid spamming cout
+    auto now_for_logging = std::chrono::steady_clock::now();
+    static auto last_log_time = now_for_logging;
+
     if (m_is_calibrating.load()) continue;
-    FiducialImageObservation frame_observation;
-    if (!m_apriltag_detector_result_queue.waitAndPop(frame_observation)) {
-      continue;  // Queue is empty and we are shutting down
+
+    // --- CAPTURE STAGE ---
+    if (!m_camera || !m_camera->getFrame(frame.frame, timestamp)) {
+      continue;  // No frame, wait for next
     }
 
-    // This structure will hold all results for the current frame.
-    AprilTagResult result;
-    result.timestamp = frame_observation.timestamp;
-    result.camera_role = m_role;
+    // Handle calibration frame processing and drawing
+    {
+      std::lock_guard<std::mutex> lock(m_calibration_mutex);
+      if (m_calibration_session) {
+        m_calibration_session->process_frame(frame.frame,
+                                             m_capture_next_frame_for_calib);
 
-    SingleTagPoseEstimator::estimatePose(frame_observation, result,
-                                         cameraMatrix, distCoeffs, tag_size_m);
+        const std::vector<cv::Point2f> all_points =
+            m_calibration_session->get_all_corners();
+        for (const auto& point : all_points) {
+          cv::circle(frame.frame, point, 6, cv::Scalar(0, 255, 0), -1);
+        }
+      }
+    }
 
-    MultiTagPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
-                                        distCoeffs, tag_size_m, m_field);
+    // Push frame to MJPEG stream if in setup mode
+    if (m_is_setup_mode && m_cv_source) {
+      m_cv_source->PutFrame(frame.frame);
+    }
+
+    // --- DETECTION STAGE ---
+    FiducialImageObservation frame_observation;
+    frame_observation.timestamp = timestamp;
+    // The detector needs a non-const frame if it draws on it,
+    // but a const frame if it doesn't. We clone to be safe and
+    // to decouple from the original frame buffer if needed.
+    m_AprilTagDetector.detect(frame, frame_observation);
 
     auto current_time = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed_seconds = current_time - last_time;
     last_time = current_time;
-
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    std::cout << "[" << m_role << "] FPS: " << smoothed_fps << std::endl;
-    std::cout << "[" << m_role << "] Frames Queued: " << m_frame_queue.size()
-              << " Detections Queued: "
-              << m_apriltag_detector_result_queue.size() << std::endl;
+    std::cout << "[" << m_role << "] FPS: " << smoothed_fps
+              << " | Pose Results Queued: " << m_estimated_poses.size()
+              << std::endl;
 
-    if (result.single_tag_poses.empty()) continue;
+    // Only run pose estimation if we have detections AND calibration data.
+    if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
+      // --- POSE ESTIMATION STAGE ---
+      // This structure will hold all results for the current frame.
+      AprilTagResult result;
+      result.timestamp = frame_observation.timestamp;
+      result.camera_role = m_role;
+      constexpr double tag_size_m = 0.1651;  // 6.5 inches
 
-    // Store the smoothed FPS in your result
-    result.fps = smoothed_fps;
+      SingleTagPoseEstimator::estimatePose(
+          frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
-    m_estimated_poses.push(result);
+      MultiTagPoseEstimator::estimatePose(frame_observation, result,
+                                          cameraMatrix, distCoeffs, tag_size_m,
+                                          m_field);
+
+      if (!result.single_tag_poses.empty() || result.multi_tag_pose) {
+        result.fps = smoothed_fps;  // Store the smoothed FPS in your result
+        m_estimated_poses.push(result);
+      }
+    }
   }
 }
 
 void Pipeline::networktables_loop() {
   while (m_is_running) {
-    // if (m_is_calibrating.load()) continue;
+    if (m_is_calibrating.load()) continue;
     AprilTagResult result;
-    m_estimated_poses.waitAndPop(result);
+    if (!m_estimated_poses.waitAndPop(result)) {
+      break;  // Shutdown has been signaled
+    }
+    m_nt_interface->publish_data(result);
   }
 }
 
@@ -487,7 +480,14 @@ void Pipeline::server_loop() {
     std::string filename;
     {
       std::lock_guard<std::mutex> lock(m_role_mutex);
-      filename = "~/GompeiVision/" + m_role + "_calibration.yml";
+      const char* home_dir = getenv("HOME");
+      if (home_dir) {
+        filename = std::string(home_dir) + "/GompeiVision/" + m_role +
+                   "_calibration.yml";
+      } else {
+        filename =
+            m_role + "_calibration.yml";  // Fallback to current directory
+      }
     }
 
     // Launch the heavy computation in a new background thread
