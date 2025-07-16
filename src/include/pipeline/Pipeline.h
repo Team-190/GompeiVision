@@ -4,6 +4,8 @@
 #include <libudev.h>
 
 #include <atomic>
+#include <cstring>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -17,53 +19,18 @@
 #include "util/QueuedFrame.h"
 #include "util/ThreadSafeQueue.h"
 
-struct CapContextDeleter {
-  void operator()(CapContext ctx) const {
-    if (ctx) Cap_releaseContext(ctx);
-  }
-};
-
 struct UdevContextDeleter {
   void operator()(struct udev* ctx) const {
     if (ctx) udev_unref(ctx);
   }
 };
 
-static CapFormatID find_optimal_format(const CapContext ctx,
-                                       const CapDeviceID dev_index) {
-  const int num_formats = Cap_getNumFormats(ctx, dev_index);
-  if (num_formats <= 0) {
-    std::cerr << "[ERROR] No camera formats found for device " << dev_index
-              << std::endl;
-    return 0;
-  }
-
-  CapFormatID best_format_id = 0;
-  uint32_t max_data = 0;
-  uint32_t max_bpp = 0;
-
-  for (int i = 0; i < num_formats; ++i) {
-    CapFormatInfo info;
-    if (Cap_getFormatInfo(ctx, dev_index, i, &info) == CAPRESULT_OK) {
-      if (const uint32_t current_data = info.width * info.height * info.fps;
-          current_data > max_data) {
-        max_data = current_data;
-        best_format_id = i;
-      } else if (current_data == max_data) {
-        if (info.bpp > max_bpp) {
-          max_bpp = info.bpp;
-          best_format_id = i;
-        }
-      }
-    }
-  }
-  return best_format_id;
-}
-
 class Pipeline {
  public:
-  Pipeline(const std::string& hardware_id, const std::string& role,
-           int stream_port, int control_port);
+  Pipeline(const int deviceIndex, const std::string& hardware_id,
+           const int width, const int height, const bool useMJPG,
+           const std::string& role, const int stream_port,
+           const int control_port);
   ~Pipeline();
 
   void start();
@@ -87,8 +54,6 @@ class Pipeline {
   int m_stream_width = 0;
   int m_stream_height = 0;
 
-  std::unique_ptr<void, CapContextDeleter> m_cap_ctx;
-  std::unique_ptr<struct udev, UdevContextDeleter> m_udev_ctx;
   std::unique_ptr<Camera> m_camera;
 
   httplib::Server m_server;

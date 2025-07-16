@@ -67,6 +67,11 @@ RUN cmake -D CMAKE_BUILD_TYPE=RELEASE \
           -D BUILD_opencv_python3=OFF \
           -D WITH_TBB=ON \
           -D WITH_V4L=ON \
+          -D WITH_FFMPEG=ON \
+          -D WITH_GSTREAMER=ON \
+          -D BUILD_opencv_videoio=ON \
+          -D BUILD_opencv_imgcodecs=ON \
+          -D BUILD_opencv_highgui=ON \
           -D WITH_OPENGL=ON \
           ..
 # Compile and install

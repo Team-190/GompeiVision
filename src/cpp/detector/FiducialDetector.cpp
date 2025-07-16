@@ -31,7 +31,7 @@ FiducialDetector::FiducialDetector() {
   apriltag_detector_add_family(tagDetector, tagFamily);
 
   // Set detector parameters (can be tuned)
-  tagDetector->quad_decimate = 1.0;
+  tagDetector->quad_decimate = 5.0;
   tagDetector->nthreads = 1;
   tagDetector->debug = false;
   tagDetector->refine_edges = true;

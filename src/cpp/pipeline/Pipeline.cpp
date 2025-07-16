@@ -17,43 +17,19 @@
 #include "estimator/SingleTagPoseEstimator.h"
 #include "pipeline/PipelineHelper.h"
 
-Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
-                   const int stream_port, const int control_port)
+Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
+                   const int width, const int height, const bool useMJPG,
+                   const std::string& role, const int stream_port,
+                   const int control_port)
     : m_hardware_id(hardware_id),
       m_role(role),
       m_control_port(control_port),
       m_stream_port(stream_port),
-      m_cap_ctx(Cap_createContext()),
-      m_udev_ctx(udev_new()),
       m_mjpeg_server(role + "_stream", stream_port) {
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
-  if (!m_cap_ctx || !m_udev_ctx) {
-    std::cerr << "[" << m_role << "] ERROR: Failed to create library contexts."
-              << std::endl;
-    return;
-  }
-
-  int device_index = -1;
-  const int device_count = Cap_getDeviceCount(m_cap_ctx.get());
-  for (int i = 0; i < device_count; ++i) {
-    if (const char* id_ptr = Cap_getDeviceUniqueID(m_cap_ctx.get(), i);
-        id_ptr && m_hardware_id == id_ptr) {
-      device_index = i;
-      break;
-    }
-  }
-
-  if (device_index == -1) {
-    std::cerr << "[" << m_role
-              << "] ERROR: Could not find device with ID: " << m_hardware_id
-              << std::endl;
-    return;
-  }
-
-  CapFormatID format_id = find_optimal_format(m_cap_ctx.get(), device_index);
-  m_camera = std::make_unique<Camera>(m_cap_ctx.get(), device_index, format_id,
-                                      m_hardware_id);
+  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, width, height,
+                                      useMJPG);
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -77,6 +53,11 @@ Pipeline::Pipeline(const std::string& hardware_id, const std::string& role,
 
   m_field = PipelineHelper::load_field_layout("2025 Reefscape");
   m_frame_queue.setMaxQueue(10);
+  if (auto res = m_camera->setExposure(100)) {
+    std::cout << "[" << m_role << "] Exposure set to 50." << std::endl;
+  } else {
+    std::cout << "[" << m_role << "] Failed to set exposure" << std::endl;
+  }
 }
 
 Pipeline::~Pipeline() {
@@ -98,7 +79,16 @@ void Pipeline::start() {
 void Pipeline::stop() {
   if (!m_is_running) return;
   m_is_running = false;
+
+  // Unblock any threads that might be waiting on blocking operations like
+  // queues or the server's listen call. This prevents deadlocks during
+  // shutdown.
+  m_frame_queue.shutdown();
+  m_apriltag_detector_result_queue.shutdown();
+  m_estimated_poses.shutdown();
   m_server.stop();
+
+  // Now that all threads have been signaled to stop and unblocked, join them.
   if (m_capture_thread.joinable()) m_capture_thread.join();
   if (m_apriltag_detector_thread.joinable()) m_apriltag_detector_thread.join();
   if (m_pose_estimator_thread.joinable()) m_pose_estimator_thread.join();
@@ -107,7 +97,6 @@ void Pipeline::stop() {
 
   if (m_calibration_worker_thread.joinable())
     m_calibration_worker_thread.join();
-
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
 
@@ -118,24 +107,23 @@ void Pipeline::capture_loop() {
   while (m_is_running) {
     if (m_camera && m_camera->getFrame(frame, timestamp)) {
       cv::cvtColor(frame, frame, cv::COLOR_RGB2BGR);
-      if (m_is_calibrating) {
-        std::lock_guard<std::mutex> lock(m_calibration_mutex);
-        if (m_calibration_session) {
-          m_calibration_session->process_frame(frame,
-                                               m_capture_next_frame_for_calib);
+      std::lock_guard<std::mutex> lock(m_calibration_mutex);
+      if (m_calibration_session) {
+        m_calibration_session->process_frame(frame,
+                                             m_capture_next_frame_for_calib);
 
-          const std::vector<cv::Point2f> all_points =
-              m_calibration_session->get_all_corners();
-          for (const auto& point : all_points) {
-            cv::circle(frame, point, 6, cv::Scalar(0, 255, 0), -1);
-          }
+        const std::vector<cv::Point2f> all_points =
+            m_calibration_session->get_all_corners();
+        for (const auto& point : all_points) {
+          cv::circle(frame, point, 6, cv::Scalar(0, 255, 0), -1);
         }
-      } else {
+      }
+      {
         QueuedFrame queuedFrame;
         queuedFrame.frame = frame.clone();
         queuedFrame.timestamp = timestamp;
         {
-          std::lock_guard<std::mutex> lock(m_role_mutex);
+          std::lock_guard<std::mutex> role_lock(m_role_mutex);
           queuedFrame.cameraRole = m_role;
         }
         m_frame_queue.push(queuedFrame);
@@ -146,7 +134,8 @@ void Pipeline::capture_loop() {
 }
 
 void Pipeline::apriltag_detector_loop() {
-  while (m_is_running && !m_is_calibrating) {
+  while (m_is_running) {
+    // if (m_is_calibrating.load()) continue;
     QueuedFrame frame;
     if (!m_frame_queue.waitAndPop(frame)) {
       continue;  // Queue is empty and we are shutting down
@@ -165,6 +154,10 @@ void Pipeline::pose_estimator_loop() {
   // --- 1. Initialization ---
   cv::Mat cameraMatrix;
   cv::Mat distCoeffs;
+
+  auto last_time = std::chrono::steady_clock::now();
+  double smoothed_fps = 0.0;
+  constexpr double alpha = 0.05;  // Smoothing factor for EMA
 
   // Load camera intrinsics from the calibration file.
   if (!PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix,
@@ -189,55 +182,49 @@ void Pipeline::pose_estimator_loop() {
       {-tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f}  // Bottom-left
   };
 
-  // --- FPS Counter Initialization ---
-  auto last_fps_update_time = std::chrono::steady_clock::now();
-  int frames_since_last_update = 0;
-  double current_fps = 0.0;
-
   // --- 2. Main Processing Loop ---
-  while (m_is_running && !m_is_calibrating) {
+  while (m_is_running) {
+    if (m_is_calibrating.load()) continue;
     FiducialImageObservation frame_observation;
     if (!m_apriltag_detector_result_queue.waitAndPop(frame_observation)) {
       continue;  // Queue is empty and we are shutting down
     }
 
-    // --- FPS Calculation ---
-    frames_since_last_update++;
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed_seconds =
-        std::chrono::duration_cast<std::chrono::duration<double>>(
-            now - last_fps_update_time)
-            .count();
-
-    if (elapsed_seconds >= 1.0) {
-      current_fps = frames_since_last_update / elapsed_seconds;
-      frames_since_last_update = 0;
-      last_fps_update_time = now;
-    }
-
-    std::cout << "[" << m_role << "] Processing FPS: " << std::fixed
-              << std::setprecision(2) << current_fps << std::endl;
-
     // This structure will hold all results for the current frame.
     AprilTagResult result;
     result.timestamp = frame_observation.timestamp;
     result.camera_role = m_role;
-    result.fps = current_fps;  // Assign the calculated FPS
 
     SingleTagPoseEstimator::estimatePose(frame_observation, result,
                                          cameraMatrix, distCoeffs, tag_size_m);
 
-    if (result.single_tag_poses.empty()) continue;
-
     MultiTagPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
                                         distCoeffs, tag_size_m, m_field);
+
+    auto current_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = current_time - last_time;
+    last_time = current_time;
+
+    const double instant_fps = 1.0 / elapsed_seconds.count();
+    smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+
+    std::cout << "[" << m_role << "] FPS: " << smoothed_fps << std::endl;
+    std::cout << "[" << m_role << "] Frames Queued: " << m_frame_queue.size()
+              << " Detections Queued: "
+              << m_apriltag_detector_result_queue.size() << std::endl;
+
+    if (result.single_tag_poses.empty()) continue;
+
+    // Store the smoothed FPS in your result
+    result.fps = smoothed_fps;
 
     m_estimated_poses.push(result);
   }
 }
 
 void Pipeline::networktables_loop() {
-  while (m_is_running && !m_is_calibrating) {
+  while (m_is_running) {
+    // if (m_is_calibrating.load()) continue;
     AprilTagResult result;
     m_estimated_poses.waitAndPop(result);
   }
@@ -500,7 +487,7 @@ void Pipeline::server_loop() {
     std::string filename;
     {
       std::lock_guard<std::mutex> lock(m_role_mutex);
-      filename = "/var/GompeiVision/" + m_role + "_calibration.yml";
+      filename = "~/GompeiVision/" + m_role + "_calibration.yml";
     }
 
     // Launch the heavy computation in a new background thread
