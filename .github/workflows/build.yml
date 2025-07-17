@@ -147,3 +147,95 @@ jobs:
           name: gompeivision-installer-arm64
           path: ${{ steps.find_deb.outputs.deb_file }}
           retention-days: 7
+
+  publish-to-gh-pages:
+    name: Publish to GitHub Pages APT Repo
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install APT utilities
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev gpg
+
+      - name: Create temporary deb download directories
+        run: mkdir -p ./debs/amd64 && mkdir -p ./debs/arm64
+
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gompeivision-installer-amd64
+          path: ./debs/amd64/
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gompeivision-installer-arm64
+          path: ./debs/arm64/
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Build and sign APT repository
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # Set up variables
+          DISTRO="jammy"
+          REPO_DIR="./apt-repo"
+          
+          # Create the repository structure
+          mkdir -p $REPO_DIR/dists/$DISTRO/main/binary-amd64
+          mkdir -p $REPO_DIR/dists/$DISTRO/main/binary-arm64
+          
+          # Move the built packages into the repository
+          find ./debs/amd64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-amd64/ \;
+          find ./debs/arm64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-arm64/ \;
+          
+          # Generate the 'Packages' files
+          (cd $REPO_DIR && dpkg-scanpackages --multiversion dists/$DISTRO/main/binary-amd64 > dists/$DISTRO/main/binary-amd64/Packages)
+          (cd $REPO_DIR && gzip -9c dists/$DISTRO/main/binary-amd64/Packages > dists/$DISTRO/main/binary-amd64/Packages.gz)
+          (cd $REPO_DIR && dpkg-scanpackages --multiversion dists/$DISTRO/main/binary-arm64 > dists/$DISTRO/main/binary-arm64/Packages)
+          (cd $REPO_DIR && gzip -9c dists/$DISTRO/main/binary-arm64/Packages > dists/$DISTRO/main/binary-arm64/Packages.gz)
+          
+          # Generate the 'Release' file
+          cat > $REPO_DIR/dists/$DISTRO/Release <<EOF
+          Origin: ${{ github.repository_owner }} GompeiVision
+          Label: GompeiVision
+          Suite: stable
+          Version: 1.0
+          Codename: ${DISTRO}
+          Architectures: amd64 arm64
+          Components: main
+          Description: GompeiVision APT repository hosted on GitHub Pages
+          Date: $(date -Ru)
+          EOF
+          ( \
+            echo "MD5Sum:"
+            cd $REPO_DIR/dists/$DISTRO && find main -type f -exec md5sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}'
+            echo "SHA256:"
+            cd $REPO_DIR/dists/$DISTRO && find main -type f -exec sha256sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}'
+          ) >> $REPO_DIR/dists/$DISTRO/Release
+          
+          # Sign the Release file
+          (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --clearsign --digest-algo SHA256 -o InRelease Release)
+          (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --digest-algo SHA256 -abs -o Release.gpg Release)
+          
+          # Export public key
+          GPG_KEY_ID=$(gpg --list-keys --with-colons | grep '^pub' | cut -d: -f5)
+          gpg --armor --export $GPG_KEY_ID > $REPO_DIR/public.key
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apt-repo
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: "Deploy: Update APT repository"
+          publish_branch: gh-pages
