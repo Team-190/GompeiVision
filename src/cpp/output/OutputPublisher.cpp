@@ -30,8 +30,8 @@ void NTOutputPublisher::CheckInit(const config::ConfigStore& config_store) {
   }
   init_complete_ = true;
 
-  auto nt_inst = nt::NetworkTableInstance::GetDefault();
-  auto table =
+  const auto nt_inst = nt::NetworkTableInstance::GetDefault();
+  const auto table =
       nt_inst.GetTable("/" + config_store.local_config.device_id + "/output");
 
   constexpr nt::PubSubOptions options{
