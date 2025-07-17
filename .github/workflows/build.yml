@@ -198,10 +198,8 @@ jobs:
           find ./debs/arm64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-arm64/ \;
           
           # Generate the 'Packages' files
-          (cd $REPO_DIR && dpkg-scanpackages --multiversion dists/$DISTRO/main/binary-amd64 > dists/$DISTRO/main/binary-amd64/Packages)
-          (cd $REPO_DIR && gzip -9c dists/$DISTRO/main/binary-amd64/Packages > dists/$DISTRO/main/binary-amd64/Packages.gz)
-          (cd $REPO_DIR && dpkg-scanpackages --multiversion dists/$DISTRO/main/binary-arm64 > dists/$DISTRO/main/binary-arm64/Packages)
-          (cd $REPO_DIR && gzip -9c dists/$DISTRO/main/binary-arm64/Packages > dists/$DISTRO/main/binary-arm64/Packages.gz)
+          (cd $REPO_DIR/dists/$DISTRO/main/binary-amd64 && dpkg-scanpackages --multiversion . > Packages && gzip -9c Packages > Packages.gz)
+          (cd $REPO_DIR/dists/$DISTRO/main/binary-arm64 && dpkg-scanpackages --multiversion . > Packages && gzip -9c Packages > Packages.gz)
           
           # Generate the 'Release' file
           cat > $REPO_DIR/dists/$DISTRO/Release <<EOF
