@@ -197,9 +197,10 @@ jobs:
           find ./debs/amd64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-amd64/ \;
           find ./debs/arm64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-arm64/ \;
           
-          # Generate the 'Packages' files, stripping the leading './' from filenames for compatibility.
-          (cd $REPO_DIR/dists/$DISTRO/main/binary-amd64 && dpkg-scanpackages --multiversion . | sed 's|^Filename: \./|Filename: |' > Packages && gzip -9c Packages > Packages.gz)
-          (cd $REPO_DIR/dists/$DISTRO/main/binary-arm64 && dpkg-scanpackages --multiversion . | sed 's|^Filename: \./|Filename: |' > Packages && gzip -9c Packages > Packages.gz)
+          # Generate the 'Packages' files. We must prepend the full path to the 'Filename' field
+          # so that 'apt' can construct the correct download URL.
+          (cd $REPO_DIR/dists/$DISTRO/main/binary-amd64 && dpkg-scanpackages --multiversion . /dev/null | sed "s|^Filename: \(.*\)|Filename: dists/$DISTRO/main/binary-amd64/\1|" > Packages && gzip -9c Packages > Packages.gz)
+          (cd $REPO_DIR/dists/$DISTRO/main/binary-arm64 && dpkg-scanpackages --multiversion . /dev/null | sed "s|^Filename: \(.*\)|Filename: dists/$DISTRO/main/binary-arm64/\1|" > Packages && gzip -9c Packages > Packages.gz)
           
           # Generate the 'Release' file
           cat > $REPO_DIR/dists/$DISTRO/Release <<EOF
