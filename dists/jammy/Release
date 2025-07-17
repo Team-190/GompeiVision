@@ -6,18 +6,18 @@ Codename: jammy
 Architectures: amd64 arm64
 Components: main
 Description: GompeiVision APT repository hosted on GitHub Pages
-Date: Thu, 17 Jul 2025 19:42:05 +0000
+Date: Thu, 17 Jul 2025 19:59:46 +0000
 MD5Sum:
- bbfa5ca2f0a126a22d5fbe6ca7ffccec                0 
- fdbb7e63d0adfc613db3dd7d4b2dc26f                0 
- f1d024acf9734ec9c8b9e66968af9fd8                0 
- 099a36f5267960e58ee7ec8cedaedb4e                0 
- eb6ba69d74b2d6135d5a0b7e5c7936d5                0 
- 57014441ae317bf8f4e7e9a45ba0fe00                0 
+ a7a8c6409ca0c6ff7f4e52c8f1c96658                0 
+ ec46e3e7a5611f46f87e7de0b810578c                0 
+ 7bddf47d48f71e1c6278f32b6a3b8528                0 
+ 76ef5318de56ef0380d108b9ece0046a                0 
+ a06604b5f91a6297ab5da598d5ce6768                0 
+ 5a4e5de9610c095f7c44a6c958303771                0 
 SHA256:
- 00d0346efdd96898900f420c7bcb1f7e591f7f7a847bd71335c33d03e2e24753                0 
- 3f20b22a718de96fc2a6614348fb278ab2671c7236cdf492eeb0e235df0dc22f                0 
- 2360854c7af4c0f694658495bdbf9b1605ebc8577030e680713ae78a415b6f04                0 
- bec923828677351917f613e2d36aa1ce295cd0b9eb191c2ef829e4e17b8855f7                0 
- 516cffacd2be5f8a3ec2b057f3e6c2b20c17578d91f1e464f32dc85649fc8570                0 
- 11a9fcef48f0d59559ef1d5503f2d22d4a92fdc02a8a8278efb56c53e2dbd8f5                0 
+ bc2f858d09c2836c5e59b9187c59169061bfdd4d75c4dea068112f477b673733                0 
+ 43e9245029e3d16a12758b4d53f8075e20312be4f4d7456b1805ab064cf5b7b5                0 
+ f59810b4de05fd775df9798362069219cb3701a79ec2738b91cfaedf2433a75c                0 
+ 72fb331e48b7924318b5a68b6538e0d9127a4e05003cd175da4b4ffb9b2e1b1d                0 
+ 4611a0b8bac3b46ebc62c5a39799843db086a5d5b39f4e4defd2d123eb8e9d21                0 
+ 453265b57a54062b548d8d4e04d000b5fdf23c94c20d7dc071a3c33f649ccdd0                0 
