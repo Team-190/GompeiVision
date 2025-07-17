@@ -9,25 +9,25 @@ Codename: jammy
 Architectures: amd64 arm64
 Components: main
 Description: GompeiVision APT repository hosted on GitHub Pages
-Date: Thu, 17 Jul 2025 20:31:12 +0000
+Date: Thu, 17 Jul 2025 20:39:38 +0000
 MD5Sum:
- ee75fc6df64c5e1004123bde2b4d8cd7                0 
- fa077fe198ece20d9f8cf4ff5a61d650                0 
- 0a12eb6710451111124c9f9ad369c985                0 
- d30ce5a3ef70215844dc7f5b37c97123                0 
- c59105ddd93a3730c94ed13cf6709ab2                0 
- 49009f99c59aba34586708a73e2f3758                0 
+ 135fd0ca1f19c5a47d9f09487742002d         53275866 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ 76c5eaa0b68bd0ac68173ed4a6d1d9f4              413 main/binary-amd64/Packages.gz
+ 9f4633dda618dc323a11aa8ecf9693c2              560 main/binary-amd64/Packages
+ 93ede6a1184bc8a6c158d412c9aa3c9c         35773608 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ db278c42eaaa94a258cc8c97e8b9d0ac              411 main/binary-arm64/Packages.gz
+ 2b223a8403927cd57c74eb2276fd4df5              560 main/binary-arm64/Packages
 SHA256:
- a12f0e59836435512f6c09103fcc5b278df068e3009870b9580df997064bf1e4                0 
- 3755509bb76d1304a99d81e10d860a743975b508f387b02ca7f56f6b3cf8bb76                0 
- 81435dc82e075abeebd13a98e8b71c3e917b8814a3c518f999fb21729ed0960e                0 
- 34546eaff4bed721194fbf5556b43b06369aae7c379aceb13b946c25ec942675                0 
- 895c62edb755761f2f704386eefa2b8c4e611c0f0de63bf8a8010dd75c250c8e                0 
- 61013e1b8978a85483651506e17dd43bf68099e5506abc0ef4ed346fcabd49c7                0 
+ 885fbf6b2fd92304f5732eca7355ef8d70d758767eec36813134e1cedc3ed602         53275866 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ 2386e890d2856c21288e15254a02b78cc65df75199ef86cdf1f9e9b254ecbcfc              413 main/binary-amd64/Packages.gz
+ e7b3c6b73ab1d97cd829bdbf0b4b86a08e613accb53a469949d500f3a9b62ca4              560 main/binary-amd64/Packages
+ f283202762c13c5ecafcf438011ea68873feafccebb734e204f89a0aef92bb86         35773608 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ 906f5c60a44804bf7db8e6a517ffac6a94a0a89eaecbfb76373702471191154a              411 main/binary-arm64/Packages.gz
+ ed6aec72563073471638357ce0537a00c0673ab90b259d34a141ad6a458374aa              560 main/binary-arm64/Packages
 -----BEGIN PGP SIGNATURE-----
 
-iHUEARYIAB0WIQSS9Hd9/r77GRd1WMvTB8WkIW1eeAUCaHldkAAKCRDTB8WkIW1e
-eJe2AP0Xkk+nFI8upAOlR9pUdHeCTHIjc9WMtnU6FtQqUojZHwEAnfwW0tDalR5o
-whIuas1f/SisPZ2PEpWTAANZcppjkgY=
-=r5hl
+iHUEARYIAB0WIQSS9Hd9/r77GRd1WMvTB8WkIW1eeAUCaHlfiwAKCRDTB8WkIW1e
+eB//AP4v39b85+ZYmB+ERnDcJ2fCZZqlSm/WhoxLR8xolOabzgD9EFpzduBDHzkd
+/kQXeq1dIjtVqbVJ0INUS3V/2kY4+w4=
+=QLR/
 -----END PGP SIGNATURE-----
