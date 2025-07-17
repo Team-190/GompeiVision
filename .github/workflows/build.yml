@@ -215,12 +215,16 @@ jobs:
           Description: GompeiVision APT repository hosted on GitHub Pages
           Date: $(date -Ru)
           EOF
-          ( \
-            echo "MD5Sum:"
-            cd $REPO_DIR/dists/$DISTRO && find main -type f -exec md5sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}'
-            echo "SHA256:"
-            cd $REPO_DIR/dists/$DISTRO && find main -type f -exec sha256sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}'
-          ) >> $REPO_DIR/dists/$DISTRO/Release
+          # Append checksums to the Release file. This is done in a subshell
+          # to ensure the 'cd' is temporary.
+          (
+            cd "$REPO_DIR/dists/$DISTRO" && {
+              echo "MD5Sum:";
+              find main -type f -exec md5sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}';
+              echo "SHA256:";
+              find main -type f -exec sha256sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}';
+            }
+          ) >> "$REPO_DIR/dists/$DISTRO/Release"
           
           # Sign the Release file
           (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --clearsign --digest-algo SHA256 -o InRelease Release)
