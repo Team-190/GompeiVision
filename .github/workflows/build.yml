@@ -175,6 +175,13 @@ jobs:
           name: gompeivision-installer-arm64
           path: ./debs/arm64/
 
+      - name: List downloaded amd64 packages
+        run: ls -l ./debs/amd64/
+
+      - name: List downloaded arm64 packages
+        run: ls -l ./debs/arm64/
+
+
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         with:
