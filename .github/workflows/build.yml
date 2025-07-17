@@ -175,13 +175,6 @@ jobs:
           name: gompeivision-installer-arm64
           path: ./debs/arm64/
 
-      - name: List downloaded amd64 packages
-        run: ls -l ./debs/amd64/
-
-      - name: List downloaded arm64 packages
-        run: ls -l ./debs/arm64/
-
-
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         with:
@@ -204,15 +197,6 @@ jobs:
           find ./debs/amd64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-amd64/ \;
           find ./debs/arm64 -name '*.deb' -exec mv {} $REPO_DIR/dists/$DISTRO/main/binary-arm64/ \;
           
-          - name: Verify .deb files moved to repo folders
-          run: |
-            ls -l ./debs/amd64/*.deb
-            ls -l ./debs/arm64/*.deb
-            find ./debs/amd64 -name '*.deb' -exec mv {} ./apt-repo/dists/jammy/main/binary-amd64/ \;
-            find ./debs/arm64 -name '*.deb' -exec mv {} ./apt-repo/dists/jammy/main/binary-arm64/ \;
-            ls -l ./apt-repo/dists/jammy/main/binary-amd64/
-            ls -l ./apt-repo/dists/jammy/main/binary-arm64/
-    
           # Generate the 'Packages' files, stripping the leading './' from filenames for compatibility.
           (cd $REPO_DIR/dists/$DISTRO/main/binary-amd64 && dpkg-scanpackages --multiversion . | sed 's|^Filename: \./|Filename: |' > Packages && gzip -9c Packages > Packages.gz)
           (cd $REPO_DIR/dists/$DISTRO/main/binary-arm64 && dpkg-scanpackages --multiversion . | sed 's|^Filename: \./|Filename: |' > Packages && gzip -9c Packages > Packages.gz)
