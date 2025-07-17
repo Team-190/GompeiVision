@@ -13,7 +13,7 @@
 #include "capture/Camera.h"
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
-#include "networktables//NetworkTablesInterface.h"
+#include "output/OutputPublisher.h"
 #include "util/QueuedFiducialData.h"
 #include "util/ThreadSafeQueue.h"
 
@@ -81,5 +81,5 @@ class Pipeline {
   bool m_is_setup_mode;
 
   // --- NetworkTables Interface ---
-  std::unique_ptr<NetworkTablesInterface> m_nt_interface;
+  std::unique_ptr<OutputPublisher> m_output_publisher;
 };

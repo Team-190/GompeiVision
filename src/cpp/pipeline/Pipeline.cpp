@@ -15,7 +15,9 @@
 #include "capture/Camera.h"
 #include "estimator/MultiTagPoseEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
-#include "networktables/NetworkTablesInterface.h"
+#include "estimator/TagAngleCalculator.h"
+#include "networktables/NetworkTableInstance.h"
+#include "output/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
 
 Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
@@ -70,7 +72,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   }
 
   // Initialize the NetworkTables interface
-  m_nt_interface = std::make_unique<NetworkTablesInterface>(m_role);
+  m_output_publisher = std::make_unique<NTOutputPublisher>();
 }
 
 Pipeline::~Pipeline() {
@@ -204,6 +206,9 @@ void Pipeline::processing_loop() {
                                           cameraMatrix, distCoeffs, tag_size_m,
                                           m_field);
 
+      TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
+                                    distCoeffs, tag_size_m);
+
       if (!result.single_tag_poses.empty() || result.multi_tag_pose) {
         result.fps = smoothed_fps;  // Store the smoothed FPS in your result
         m_estimated_poses.push(result);
@@ -219,7 +224,14 @@ void Pipeline::networktables_loop() {
     if (!m_estimated_poses.waitAndPop(result)) {
       break;  // Shutdown has been signaled
     }
-    m_nt_interface->publish_data(result);
+    if (m_output_publisher) {
+      config::ConfigStore config;
+      {
+        std::lock_guard<std::mutex> lock(m_role_mutex);
+        config.local_config.device_id = m_role;
+      }
+      m_output_publisher->SendAprilTagResult(config, result);
+    }
   }
 }
 
