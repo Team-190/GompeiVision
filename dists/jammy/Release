@@ -1,0 +1,23 @@
+Origin: Team-190 GompeiVision
+Label: GompeiVision
+Suite: stable
+Version: 1.0
+Codename: jammy
+Architectures: amd64 arm64
+Components: main
+Description: GompeiVision APT repository hosted on GitHub Pages
+Date: Thu, 17 Jul 2025 19:04:21 +0000
+MD5Sum:
+ a1b3f35e8317ce3ec19119202023f1be                0 
+ 40315f10e9769c8cd6bcf20c1071dab0                0 
+ ee061fc72617b1a6e7bb1493487102ef                0 
+ b2bf4be8235780d7abe425c85df91daa                0 
+ d9fe893cc76f6fbfdea7d85fb3c44a54                0 
+ cb5409be3165474f6bf565bc186cb41d                0 
+SHA256:
+ 4bbaef843ffad7292544aa2612e3a13da6ffa7ddce6dcb895676290f978f5d35                0 
+ 4c3fbe865450b541ce0c37cdd2403c78e5603868436b3a582993152d9e85f4ed                0 
+ 334412fe12b65dab953bebd3dbe1d8375a2633da5a9b67696e80cbcb71ee318a                0 
+ 9d7bc8c954db2c260f0d0c25302a8e8ba2b3776200c7bc0807ca7afb9906e968                0 
+ de57f409364af52f96d9b9c38709566ce023ac0de656cdac90893ddb13e115a6                0 
+ fa3726be65b1d51b40e084a5581051e2c630a7644edc63cf4d8908e1a0d529c1                0 
