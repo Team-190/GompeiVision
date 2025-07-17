@@ -213,14 +213,21 @@ jobs:
           Description: GompeiVision APT repository hosted on GitHub Pages
           Date: $(date -Ru)
           EOF
-          # Append checksums to the Release file. This is done in a subshell
-          # to ensure the 'cd' is temporary.
+          # Append checksums to the Release file. This robust method correctly
+          # includes file sizes, which is required by APT and is less prone to
+          # silent script errors.
           (
             cd "$REPO_DIR/dists/$DISTRO" && {
               echo "MD5Sum:";
-              find main -type f -exec md5sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}';
+              find main -type f -exec md5sum {} + | while read -r hash name; do
+                size=$(stat -c%s "$name")
+                printf " %s %16d %s\n" "$hash" "$size" "$name"
+              done
               echo "SHA256:";
-              find main -type f -exec sha256sum {} + | awk '{printf " %s %16d %s\n", $1, $2, $3}';
+              find main -type f -exec sha256sum {} + | while read -r hash name; do
+                size=$(stat -c%s "$name")
+                printf " %s %16d %s\n" "$hash" "$size" "$name"
+              done
             }
           ) >> "$REPO_DIR/dists/$DISTRO/Release"
           
