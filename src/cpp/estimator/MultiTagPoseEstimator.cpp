@@ -68,8 +68,8 @@ void MultiTagPoseEstimator::estimatePose(
       // Use IPPE to get the two ambiguous poses for the tag
       std::vector<cv::Mat> rvecs, tvecs;
       std::vector<double> errors;
-      cv::solvePnPGeneric(standard_object_points, all_image_points,
-                          cameraMatrix, distCoeffs, rvecs, tvecs, false,
+      cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
+                          distCoeffs, rvecs, tvecs, false,
                           cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
                           cv::noArray(), errors);
 
@@ -108,11 +108,16 @@ void MultiTagPoseEstimator::estimatePose(
         pose.pose_0 = field_to_camera_pose_0;
         pose.pose_1 = field_to_camera_pose_1;
 
-        result.single_tag_poses.push_back(pose);
+        result.multi_tag_pose->pose_0 = pose.pose_0;
+        result.multi_tag_pose->pose_1 = pose.pose_1;
       }
     } else if (tags_used_ids.size() > 1) {
-      cv::Mat multi_rvec, multi_tvec;
+      std::cout << "> 1 tag found" << std::endl;
+
+      std::vector<cv::Mat> multi_rvec, multi_tvec;
       std::vector<double> errors;
+
+      std::cout << "Defining vectors and Mats" << std::endl;
 
       // Use a robust solver like SQPNP for a single, stable pose.
       cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
@@ -120,10 +125,14 @@ void MultiTagPoseEstimator::estimatePose(
                           cv::SOLVEPNP_SQPNP, cv::noArray(), cv::noArray(),
                           errors);
 
+      std::cout << "Solved PNP lol" << std::endl;
+
       // The result of solvePnP is the pose of the field origin in the
       // camera's frame.
       frc::Pose3d camera_to_field_pose =
-          PoseUtils::openCvPoseToWpilib(multi_tvec, multi_rvec);
+          PoseUtils::openCvPoseToWpilib(multi_rvec[0], multi_tvec[0]);
+
+      std::cout << "transform cv to wpilib pose" << std::endl;
 
       // We need the inverse: the pose of the camera in the field's frame.
       auto camera_to_field = frc::Transform3d(
@@ -132,11 +141,15 @@ void MultiTagPoseEstimator::estimatePose(
       auto field_to_camera_pose = frc::Pose3d(field_to_camera.Translation(),
                                               field_to_camera.Rotation());
 
+      std::cout << "Invert transform" << std::endl;
+
       CameraPoseObservation cam_pose;
       cam_pose.pose_0 = field_to_camera_pose;
       cam_pose.error_0 = errors[0];
       cam_pose.tag_ids = tags_used_ids;
       result.multi_tag_pose = cam_pose;
+
+      std::cout << "assigned" << std::endl;
     }
   }
 }
