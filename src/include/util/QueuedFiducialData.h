@@ -69,7 +69,7 @@ struct AprilTagResult {
   int fps;
 
   // The final, high-quality multi-tag pose estimate.
-  std::optional<CameraPoseObservation> multi_tag_pose;
+  CameraPoseObservation multi_tag_pose;
 
   // A list of all the individual tag poses found in the frame.
   std::vector<FiducialPoseObservation> single_tag_poses;
