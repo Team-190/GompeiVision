@@ -78,7 +78,7 @@ void NTOutputPublisher::SendAprilTagResult(
     observation_data.push_back(0);  // Flag for no pose
   }
 
-  // std::cout << observation_data.size() << std::endl;
+  std::cout << observation_data.size() << std::endl;
 
   // Append tag angles data
   // Data format: [tag_id, c0_x, c0_y, c1_x, c1_y, ..., distance]
