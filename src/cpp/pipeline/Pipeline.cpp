@@ -186,9 +186,9 @@ void Pipeline::processing_loop() {
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    std::cout << "[" << m_role << "] FPS: " << smoothed_fps
-              << " | Pose Results Queued: " << m_estimated_poses.size()
-              << std::endl;
+    // std::cout << "[" << m_role << "] FPS: " << smoothed_fps
+    //           << " | Pose Results Queued: " << m_estimated_poses.size()
+    //           << std::endl;
 
     // Only run pose estimation if we have detections AND calibration data.
     if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
@@ -205,6 +205,13 @@ void Pipeline::processing_loop() {
       MultiTagPoseEstimator::estimatePose(frame_observation, result,
                                           cameraMatrix, distCoeffs, tag_size_m,
                                           m_field);
+
+      std::cout << "X: " << result.multi_tag_pose->pose_0.X().value()
+                << std::endl;
+      std::cout << "Y: " << result.multi_tag_pose->pose_0.Y().value()
+                << std::endl;
+      std::cout << "Z: " << result.multi_tag_pose->pose_0.Z().value()
+                << std::endl;
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
