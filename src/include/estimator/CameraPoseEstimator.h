@@ -9,16 +9,16 @@
 #include "util/QueuedFiducialData.h"
 
 /**
- * @class MultiTagPoseEstimator
+ * @class CameraPoseEstimator
  * @brief Estimates the camera's 3D pose using all visible AprilTags.
  *
  * This class performs the final, high-quality pose estimation by using all
  * visible tags in a single solvePnP calculation. This provides a more stable
  * and accurate result than any single tag could.
  */
-class MultiTagPoseEstimator {
+class CameraPoseEstimator {
  public:
-  MultiTagPoseEstimator() = default;
+  CameraPoseEstimator() = default;
 
   /**
    * @brief Estimates the camera's pose relative to the field origin.

@@ -1,4 +1,4 @@
-#include "estimator/MultiTagPoseEstimator.h"
+#include "estimator/CameraPoseEstimator.h"
 
 #include <frc/geometry/Transform3d.h>
 
@@ -7,7 +7,7 @@
 
 #include "util/PoseUtils.h"
 
-void MultiTagPoseEstimator::estimatePose(
+void CameraPoseEstimator::estimatePose(
     const FiducialImageObservation& observation, AprilTagResult& result,
     const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, double tag_size_m,
     const std::map<int, frc::Pose3d>& field_layout) {
@@ -68,17 +68,25 @@ void MultiTagPoseEstimator::estimatePose(
       // Use IPPE to get the two ambiguous poses for the tag
       std::vector<cv::Mat> rvecs, tvecs;
       std::vector<double> errors;
+
+      std::cout << "Defining vectors and Mats" << std::endl;
+
       cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
                           distCoeffs, rvecs, tvecs, false,
                           cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(),
                           cv::noArray(), errors);
 
+      std::cout << "Solved PNP lol" << std::endl;
+
       // A valid solution must have two poses and corresponding errors.
       if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
-        FiducialPoseObservation pose;
-        pose.tag_id = observation.tag_ids[0];
+        std::cout << "Valid Capture" << std::endl;
+        CameraPoseObservation pose;
+        pose.tag_ids = observation.tag_ids;
         pose.error_0 = errors[0];
         pose.error_1 = errors[1];
+
+        std::cout << "defined pose" << std::endl;
 
         auto camera_to_tag_pose_0 =
             PoseUtils::openCvPoseToWpilib(rvecs[0], tvecs[0]);
@@ -105,11 +113,15 @@ void MultiTagPoseEstimator::estimatePose(
         auto field_to_camera_pose_1 = frc::Pose3d(
             field_to_camera_1.Translation(), field_to_camera_1.Rotation());
 
+        std::cout << "Transforms" << std::endl;
+
         pose.pose_0 = field_to_camera_pose_0;
         pose.pose_1 = field_to_camera_pose_1;
 
-        result.multi_tag_pose.pose_0 = pose.pose_0;
-        result.multi_tag_pose.pose_1 = pose.pose_1;
+        std::cout << "Pose: " << pose.pose_0.X().value() << ", "
+                  << pose.pose_0.Y().value() << std::endl;
+
+        result.multi_tag_pose = pose;
       }
     } else if (tags_used_ids.size() > 1) {
       std::cout << "> 1 tag found" << std::endl;
