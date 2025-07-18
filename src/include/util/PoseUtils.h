@@ -83,4 +83,8 @@ inline cv::Point3f wpilibTranslationToOpenCV(
   return cv::Point3f(-translation.Y().value(), -translation.Z().value(),
                      translation.X().value());
 }
+
+inline bool isPoseZero(const frc::Pose3d& pose) {
+  return pose.X() == 0_m && pose.Y() == 0_m && pose.Z() == 0_m;
+}
 }  // namespace PoseUtils
