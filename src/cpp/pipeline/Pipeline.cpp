@@ -219,12 +219,10 @@ void Pipeline::processing_loop() {
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
 
-      if (result.multi_tag_pose.has_value() &&
-          !PoseUtils::isPoseZero(result.multi_tag_pose->pose_0) &&
-          !result.single_tag_poses.empty()) {
-        result.fps = smoothed_fps;  // Store the smoothed FPS in your result
-        m_estimated_poses.push(result);
-      }
+      result.fps = smoothed_fps;  // Store the smoothed FPS in your result
+      m_estimated_poses.push(result);
+
+      std::cout << "data sent" << std::endl;
     }
   }
 }
