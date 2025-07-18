@@ -1,22 +1,20 @@
 #include "pipeline/PipelineHelper.h"
 
 #include <fields/fields.h>
-#include <linux/limits.h>
-#include <unistd.h>
-
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <vector>
-
 #include <frc/geometry/Pose3d.h>
 #include <frc/geometry/Quaternion.h>
 #include <frc/geometry/Rotation3d.h>
 #include <frc/geometry/Translation3d.h>
-#include <nlohmann/json.hpp>
+#include <linux/limits.h>
+#include <unistd.h>
 #include <units/length.h>
 
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
+#include <vector>
 
 PipelineHelper::PipelineHelper() {}
 PipelineHelper::~PipelineHelper() {}
@@ -128,15 +126,14 @@ std::map<int, frc::Pose3d> PipelineHelper::load_field_layout(
     // Search path for a standard installation (e.g., /usr/local/):
     // exe is in <prefix>/bin/GompeiVision
     // data is in <prefix>/share/GompeiVision/fields/
-    search_paths.push_back(exe_path.parent_path().parent_path() / "share" /
-                           "GompeiVision" / "fields" / field_name);
+    search_paths.push_back(std::filesystem::path(
+        "/usr/local/share/GompeiVision/fields/" + field_name));
   }
 
   // 2. Path relative to current working directory (for development)
   // Allows running from the build directory if you copy 'fields' there.
-  search_paths.push_back(std::filesystem::current_path() / "fields" /
-                         field_name);
-
+  search_paths.push_back(std::filesystem::path(
+      "/usr/local/share/GompeiVision/fields/" + field_name));
   for (const auto& p : search_paths) {
     std::ifstream f(p);
     if (f.is_open()) {
@@ -159,10 +156,9 @@ std::map<int, frc::Pose3d> PipelineHelper::load_field_layout(
               units::meter_t{translation_json.at("y").get<double>()},
               units::meter_t{translation_json.at("z").get<double>()});
 
-          frc::Quaternion quaternion(quat_json.at("W").get<double>(),
-                                     quat_json.at("X").get<double>(),
-                                     quat_json.at("Y").get<double>(),
-                                     quat_json.at("Z").get<double>());
+          frc::Quaternion quaternion(
+              quat_json.at("W").get<double>(), quat_json.at("X").get<double>(),
+              quat_json.at("Y").get<double>(), quat_json.at("Z").get<double>());
 
           layout[id] = frc::Pose3d(translation, frc::Rotation3d(quaternion));
         }
@@ -171,8 +167,9 @@ std::map<int, frc::Pose3d> PipelineHelper::load_field_layout(
         return layout;
 
       } catch (const nlohmann::json::exception& e) {
-        std::cerr << "[PipelineHelper] ERROR: Failed to parse field layout from "
-                  << p << ". Details: " << e.what() << std::endl;
+        std::cerr
+            << "[PipelineHelper] ERROR: Failed to parse field layout from " << p
+            << ". Details: " << e.what() << std::endl;
       }
     }
   }

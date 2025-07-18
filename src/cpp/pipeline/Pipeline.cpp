@@ -180,7 +180,7 @@ void Pipeline::processing_loop() {
     // to decouple from the original frame buffer if needed.
     m_AprilTagDetector.detect(frame, frame_observation);
 
-    std::cout << frame_observation.tag_ids[0] << std::endl;
+    // std::cout << frame_observation.tag_ids.size() << std::endl;
 
     auto current_time = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed_seconds = current_time - last_time;
@@ -201,19 +201,19 @@ void Pipeline::processing_loop() {
       result.camera_role = m_role;
       constexpr double tag_size_m = 0.1651;  // 6.5 inches
 
-      SingleTagPoseEstimator::estimatePose(
-          frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
+      // SingleTagPoseEstimator::estimatePose(
+      //     frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
       MultiTagPoseEstimator::estimatePose(frame_observation, result,
                                           cameraMatrix, distCoeffs, tag_size_m,
                                           m_field);
 
-      // std::cout << "X: " << result.multi_tag_pose->pose_0.X().value()
-      //           << std::endl;
-      // std::cout << "Y: " << result.multi_tag_pose->pose_0.Y().value()
-      //           << std::endl;
-      // std::cout << "Z: " << result.multi_tag_pose->pose_0.Z().value()
-      //           << std::endl;
+      std::cout << "X: " << result.multi_tag_pose->pose_0.X().value()
+                << std::endl;
+      std::cout << "Y: " << result.multi_tag_pose->pose_0.Y().value()
+                << std::endl;
+      std::cout << "Z: " << result.multi_tag_pose->pose_0.Z().value()
+                << std::endl;
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
