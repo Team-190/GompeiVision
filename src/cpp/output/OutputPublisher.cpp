@@ -3,6 +3,7 @@
 #include <networktables/NetworkTableInstance.h>
 
 #include <chrono>
+#include <iostream>
 #include <vector>
 
 namespace {
@@ -41,6 +42,8 @@ void NTOutputPublisher::CheckInit(const config::ConfigStore& config_store) {
       table->GetDoubleArrayTopic("observations").Publish(options);
   apriltags_fps_pub_ = table->GetIntegerTopic("fps_apriltags").Publish();
 
+  std::cout << "inited complete" << std::endl;
+
   // objdetect_fps_pub_ = table.GetIntegerTopic("fps_objdetect").Publish();
   // objdetect_observations_pub_ =
   //     table.GetDoubleArrayTopic("objdetect_observations").Publish(options);
@@ -72,6 +75,8 @@ void NTOutputPublisher::SendAprilTagResult(
   } else {
     observation_data.push_back(0);  // Flag for no pose
   }
+
+  std::cout << observation_data.size() << std::endl;
 
   // Append tag angles data
   // Data format: [tag_id, c0_x, c0_y, c1_x, c1_y, ..., distance]

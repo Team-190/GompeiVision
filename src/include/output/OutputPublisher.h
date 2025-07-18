@@ -48,7 +48,6 @@ class NTOutputPublisher final : public OutputPublisher {
 
   bool init_complete_ = false;
   nt::DoubleArrayPublisher observations_pub_;
-  nt::DoubleArrayPublisher demo_observations_pub_;
   nt::IntegerPublisher apriltags_fps_pub_;
   // nt::IntegerPublisher objdetect_fps_pub_;
   // nt::DoubleArrayPublisher objdetect_observations_pub_;
