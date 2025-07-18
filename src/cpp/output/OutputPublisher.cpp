@@ -6,6 +6,8 @@
 #include <iostream>
 #include <vector>
 
+#include "util/PoseUtils.h"
+
 namespace {
 /**
  * @brief Helper function to serialize a Pose3d into a vector of doubles.
@@ -56,8 +58,8 @@ void NTOutputPublisher::SendAprilTagResult(
   // --- Main observation data ---
   // This contains the multi-tag pose estimate and corner angles.
   std::vector<double> observation_data;
-  if (result.multi_tag_pose.has_value()) {
-    const auto& obs = result.multi_tag_pose.value();
+  if (!PoseUtils::isPoseZero(result.multi_tag_pose.pose_0)) {
+    const auto& obs = result.multi_tag_pose;
     // Data format: [pose_count, error_0, x, y, z, qw, qx, qy, qz, (error_1,
     // ...)]
     if (obs.pose_1.has_value()) {
@@ -76,7 +78,7 @@ void NTOutputPublisher::SendAprilTagResult(
     observation_data.push_back(0);  // Flag for no pose
   }
 
-  std::cout << observation_data.size() << std::endl;
+  // std::cout << observation_data.size() << std::endl;
 
   // Append tag angles data
   // Data format: [tag_id, c0_x, c0_y, c1_x, c1_y, ..., distance]

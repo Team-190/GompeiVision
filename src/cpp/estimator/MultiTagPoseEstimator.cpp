@@ -81,9 +81,9 @@ void MultiTagPoseEstimator::estimatePose(
         pose.error_1 = errors[1];
 
         auto camera_to_tag_pose_0 =
-            PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+            PoseUtils::openCvPoseToWpilib(rvecs[0], tvecs[0]);
         auto camera_to_tag_pose_1 =
-            PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+            PoseUtils::openCvPoseToWpilib(rvecs[1], tvecs[1]);
 
         frc::Pose3d field_to_tag_pose =
             field_layout.find(observation.tag_ids[0])->second;
@@ -108,8 +108,8 @@ void MultiTagPoseEstimator::estimatePose(
         pose.pose_0 = field_to_camera_pose_0;
         pose.pose_1 = field_to_camera_pose_1;
 
-        result.multi_tag_pose->pose_0 = pose.pose_0;
-        result.multi_tag_pose->pose_1 = pose.pose_1;
+        result.multi_tag_pose.pose_0 = pose.pose_0;
+        result.multi_tag_pose.pose_1 = pose.pose_1;
       }
     } else if (tags_used_ids.size() > 1) {
       std::cout << "> 1 tag found" << std::endl;
@@ -147,6 +147,7 @@ void MultiTagPoseEstimator::estimatePose(
       cam_pose.pose_0 = field_to_camera_pose;
       cam_pose.error_0 = errors[0];
       cam_pose.tag_ids = tags_used_ids;
+
       result.multi_tag_pose = cam_pose;
 
       std::cout << "assigned" << std::endl;

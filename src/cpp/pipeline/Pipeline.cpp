@@ -209,11 +209,11 @@ void Pipeline::processing_loop() {
                                           cameraMatrix, distCoeffs, tag_size_m,
                                           m_field);
 
-      std::cout << "X: " << result.multi_tag_pose->pose_0.X().value()
+      std::cout << "X: " << result.multi_tag_pose.pose_0.X().value()
                 << std::endl;
-      std::cout << "Y: " << result.multi_tag_pose->pose_0.Y().value()
+      std::cout << "Y: " << result.multi_tag_pose.pose_0.Y().value()
                 << std::endl;
-      std::cout << "Z: " << result.multi_tag_pose->pose_0.Z().value()
+      std::cout << "Z: " << result.multi_tag_pose.pose_0.Z().value()
                 << std::endl;
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
@@ -222,7 +222,7 @@ void Pipeline::processing_loop() {
       result.fps = smoothed_fps;  // Store the smoothed FPS in your result
       m_estimated_poses.push(result);
 
-      std::cout << "data sent" << std::endl;
+      // std::cout << "data sent" << std::endl;
     }
   }
 }
@@ -234,6 +234,10 @@ void Pipeline::networktables_loop() {
     if (!m_estimated_poses.waitAndPop(result)) {
       continue;
     }
+
+    // std::cout << result.multi_tag_pose.has_value() << std::endl;
+    // std::cout << result.multi_tag_pose->pose_0.X().value() << std::endl;
+
     if (m_output_publisher) {
       config::ConfigStore config;
       {
