@@ -8,6 +8,7 @@
 
 int main() {
   nt::NetworkTableInstance::GetDefault().StartClient4("GompeiVision");
+  nt::NetworkTableInstance::GetDefault().SetServerTeam(190);
   std::cout << "--- Goat Class Web Server Test ---" << std::endl;
 
   // --- Minimal Camera Setup ---
