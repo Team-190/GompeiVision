@@ -227,6 +227,7 @@ void Pipeline::processing_loop() {
 }
 
 void Pipeline::networktables_loop() {
+  std::cout << "inside function" << std::endl;
   while (m_is_running) {
     if (m_is_calibrating.load()) continue;
     AprilTagResult result;
