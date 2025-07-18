@@ -230,7 +230,9 @@ void Pipeline::networktables_loop() {
   while (m_is_running) {
     if (m_is_calibrating.load()) continue;
     AprilTagResult result;
+    std::cout << "got here" << std::endl;
     if (!m_estimated_poses.waitAndPop(result)) {
+      std::cout << "continued" << std::endl;
       continue;
     }
     if (m_output_publisher) {
@@ -240,6 +242,7 @@ void Pipeline::networktables_loop() {
         config.local_config.device_id = m_role;
       }
       m_output_publisher->SendAprilTagResult(config, result);
+      std::cout << "sent" << std::endl;
     }
   }
 }
