@@ -19,6 +19,7 @@
 #include "networktables/NetworkTableInstance.h"
 #include "output/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
+#include "util/PoseUtils.h"
 
 Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
                    const int width, const int height, const bool setup_mode,
@@ -201,8 +202,8 @@ void Pipeline::processing_loop() {
       result.camera_role = m_role;
       constexpr double tag_size_m = 0.1651;  // 6.5 inches
 
-      // SingleTagPoseEstimator::estimatePose(
-      //     frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
+      SingleTagPoseEstimator::estimatePose(
+          frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
       MultiTagPoseEstimator::estimatePose(frame_observation, result,
                                           cameraMatrix, distCoeffs, tag_size_m,
@@ -218,7 +219,9 @@ void Pipeline::processing_loop() {
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
 
-      if (!result.single_tag_poses.empty() || result.multi_tag_pose) {
+      if (result.multi_tag_pose.has_value() &&
+          !PoseUtils::isPoseZero(result.multi_tag_pose->pose_0) &&
+          !result.single_tag_poses.empty()) {
         result.fps = smoothed_fps;  // Store the smoothed FPS in your result
         m_estimated_poses.push(result);
       }
