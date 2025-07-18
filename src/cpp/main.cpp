@@ -40,7 +40,7 @@ int main() {
 
   // 1. Create an instance of your Goat class.
   // The constructor will initialize the camera and the web server components.
-  Pipeline goat_worker(0, camera_id, 1600, 1304, false, TEST_ROLE, TEST_PORT,
+  Pipeline goat_worker(0, camera_id, 1600, 1304, true, TEST_ROLE, TEST_PORT,
                        TEST_PORT + 1);
 
   // 2. Start the internal threads (capture loop and server loop).
