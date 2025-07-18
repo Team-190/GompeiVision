@@ -1,6 +1,20 @@
 #include "pipeline/PipelineHelper.h"
 
 #include <fields/fields.h>
+#include <linux/limits.h>
+#include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <vector>
+
+#include <frc/geometry/Pose3d.h>
+#include <frc/geometry/Quaternion.h>
+#include <frc/geometry/Rotation3d.h>
+#include <frc/geometry/Translation3d.h>
+#include <nlohmann/json.hpp>
+#include <units/length.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -76,74 +90,102 @@ bool PipelineHelper::load_camera_intrinsics(const std::string& role,
     file_path =
         std::string(home_dir) + "/GompeiVision/" + role + "_calibration.yml";
   } else {
-    file_path = role + "_calibration.yml"; // Fallback to current directory
+    file_path = role + "_calibration.yml";  // Fallback to current directory
   }
-    try {
-      cv::FileStorage fs(file_path, cv::FileStorage::READ);
-      if (!fs.isOpened()) {
-        std::cerr << "[" << role << "] ERROR: Could not open calibration file: "
-                  << file_path << std::endl;
-        return false;
-      }
-      fs["camera_matrix"] >> cameraMatrix;
-      fs["distortion_coefficients"] >> distCoeffs;
-      fs.release();
-      std::cout << "[" << role << "] Calibration data loaded successfully."
+  try {
+    cv::FileStorage fs(file_path, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+      std::cerr << "[" << role
+                << "] ERROR: Could not open calibration file: " << file_path
                 << std::endl;
-    } catch (const cv::Exception& e) {
-      std::cerr << "[" << role << "] ERROR: Failed to read calibration data. "
-                << e.what() << std::endl;
       return false;
     }
-    return true;
+    fs["camera_matrix"] >> cameraMatrix;
+    fs["distortion_coefficients"] >> distCoeffs;
+    fs.release();
+    std::cout << "[" << role << "] Calibration data loaded successfully."
+              << std::endl;
+  } catch (const cv::Exception& e) {
+    std::cerr << "[" << role << "] ERROR: Failed to read calibration data. "
+              << e.what() << std::endl;
+    return false;
+  }
+  return true;
 }
 
 std::map<int, frc::Pose3d> PipelineHelper::load_field_layout(
     const std::string& field_name) {
-  {
-    std::map<int, frc::Pose3d> layout;
+  std::vector<std::filesystem::path> search_paths;
 
-    // 1. Get the list of all available fields
-    const std::span<const fields::Field> all_fields = fields::GetFields();
-
-    // 2. Find the field with the matching name
-    const fields::Field* target_field = nullptr;
-    for (const auto& field : all_fields) {
-      if (field.name == field_name) {
-        target_field = &field;
-        break;
-      }
-    }
-
-    if (!target_field) {
-      std::cerr << "ERROR: Could not find field layout for '" << field_name
-                << "'" << std::endl;
-      return layout;  // Return empty map
-    }
-
-    // 3. Get the JSON data and parse it
-    try {
-      nlohmann::json layout_json =
-          nlohmann::json::parse(target_field->getJson());
-
-      // 4. Iterate through the tags and create frc::Pose3d objects
-      for (const auto& tag_data : layout_json["tags"]) {
-        int id = tag_data["ID"];
-        auto t = tag_data["pose"]["translation"];
-        auto q = tag_data["pose"]["rotation"]["quaternion"];
-
-        layout[id] = frc::Pose3d(
-            frc::Translation3d(units::meter_t{t["x"]}, units::meter_t{t["y"]},
-                               units::meter_t{t["z"]}),
-            frc::Rotation3d(frc::Quaternion(q["W"], q["X"], q["Y"], q["Z"])));
-      }
-      std::cout << "Successfully loaded field layout for '" << field_name
-                << "' with " << layout.size() << " tags." << std::endl;
-    } catch (const nlohmann::json::exception& e) {
-      std::cerr << "ERROR: Failed to parse field layout JSON for '"
-                << field_name << "'. Details: " << e.what() << std::endl;
-    }
-
-    return layout;
+  // 1. Path relative to the executable. This is the most robust method for an
+  // installed application on Linux. It works regardless of install location or
+  // current working directory.
+  char result[PATH_MAX];
+  ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+  if (count != -1) {
+    std::filesystem::path exe_path =
+        std::filesystem::path(std::string(result, count));
+    // Search path for a standard installation (e.g., /usr/local/):
+    // exe is in <prefix>/bin/GompeiVision
+    // data is in <prefix>/share/GompeiVision/fields/
+    search_paths.push_back(exe_path.parent_path().parent_path() / "share" /
+                           "GompeiVision" / "fields" / field_name);
   }
+
+  // 2. Path relative to current working directory (for development)
+  // Allows running from the build directory if you copy 'fields' there.
+  search_paths.push_back(std::filesystem::current_path() / "fields" /
+                         field_name);
+
+  for (const auto& p : search_paths) {
+    std::ifstream f(p);
+    if (f.is_open()) {
+      std::cout << "[PipelineHelper] Found and loading field layout from: "
+                << std::filesystem::absolute(p) << std::endl;
+      try {
+        nlohmann::json data = nlohmann::json::parse(f);
+        const auto& tags = data.at("tags");
+
+        std::map<int, frc::Pose3d> layout;
+        for (const auto& tag_item : tags) {
+          int id = tag_item.at("ID");
+
+          const auto& pose_json = tag_item.at("pose");
+          const auto& translation_json = pose_json.at("translation");
+          const auto& quat_json = pose_json.at("rotation").at("quaternion");
+
+          frc::Translation3d translation(
+              units::meter_t{translation_json.at("x").get<double>()},
+              units::meter_t{translation_json.at("y").get<double>()},
+              units::meter_t{translation_json.at("z").get<double>()});
+
+          frc::Quaternion quaternion(quat_json.at("W").get<double>(),
+                                     quat_json.at("X").get<double>(),
+                                     quat_json.at("Y").get<double>(),
+                                     quat_json.at("Z").get<double>());
+
+          layout[id] = frc::Pose3d(translation, frc::Rotation3d(quaternion));
+        }
+        std::cout << "[PipelineHelper] Successfully loaded " << layout.size()
+                  << " tags." << std::endl;
+        return layout;
+
+      } catch (const nlohmann::json::exception& e) {
+        std::cerr << "[PipelineHelper] ERROR: Failed to parse field layout from "
+                  << p << ". Details: " << e.what() << std::endl;
+      }
+    }
+  }
+
+  std::cerr << "---" << std::endl;
+  std::cerr << "[PipelineHelper] FATAL: Could not find field layout file '"
+            << field_name << "'." << std::endl;
+  std::cerr << "[PipelineHelper] Searched in the following locations:"
+            << std::endl;
+  for (const auto& p : search_paths) {
+    std::cerr << " - " << std::filesystem::absolute(p) << std::endl;
+  }
+  std::cerr << "---" << std::endl;
+
+  return {};  // Return empty map if file not found or failed to parse
 }

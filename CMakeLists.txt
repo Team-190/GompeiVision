@@ -35,5 +35,10 @@ install(FILES ${SYSTEM_LIBS}
         DESTINATION lib
 )
 
+# Install the field layout asset file
+install(FILES
+        ${CMAKE_SOURCE_DIR}/fields/2025-reefscape-andymark.json
+        DESTINATION share/GompeiVision/fields)
+
 # Set up packaging with CPack
 include(packaging/CPackConfig.cmake)

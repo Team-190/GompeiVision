@@ -64,7 +64,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
               << m_stream_port << std::endl;
   }
 
-  m_field = PipelineHelper::load_field_layout("2025 Reefscape");
+  m_field = PipelineHelper::load_field_layout("2025-reefscape-andymark.json");
   if (auto res = m_camera->setExposure(50)) {
     std::cout << "[" << m_role << "] Exposure set to 50." << std::endl;
   } else {
