@@ -1,3 +1,5 @@
+#include <networktables/NetworkTableInstance.h>
+
 #include <iostream>
 #include <string>
 
@@ -5,6 +7,7 @@
 #include "pipeline/Pipeline.h"
 
 int main() {
+  nt::NetworkTableInstance::GetDefault().StartClient4("GompeiVision");
   std::cout << "--- Goat Class Web Server Test ---" << std::endl;
 
   // --- Minimal Camera Setup ---
