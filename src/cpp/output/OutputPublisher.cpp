@@ -57,15 +57,15 @@ void NTOutputPublisher::SendAprilTagResult(
 
   // --- Main observation data ---
   // This contains the multi-tag pose estimate and corner angles.
-  std::vector<double> observation_data;
+  std::vector<double> observation_data = {0.0};
   if (!PoseUtils::isPoseZero(result.multi_tag_pose.pose_0)) {
     const auto& obs = result.multi_tag_pose;
     // Data format: [pose_count, error_0, x, y, z, qw, qx, qy, qz, (error_1,
     // ...)]
     if (obs.pose_1.has_value()) {
-      observation_data.push_back(2);  // Flag for two poses
+      observation_data[0] = 2;  // Flag for two poses
     } else {
-      observation_data.push_back(1);  // Flag for one pose
+      observation_data[0] = 1;  // Flag for one pose
     }
     observation_data.push_back(obs.error_0);
     AppendPoseData(observation_data, obs.pose_0);
@@ -74,8 +74,6 @@ void NTOutputPublisher::SendAprilTagResult(
       observation_data.push_back(obs.error_1.value());
       AppendPoseData(observation_data, obs.pose_1.value());
     }
-  } else {
-    observation_data.push_back(0);  // Flag for no pose
   }
 
   std::cout << observation_data.size() << std::endl;

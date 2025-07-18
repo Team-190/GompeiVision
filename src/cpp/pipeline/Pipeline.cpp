@@ -13,7 +13,7 @@
 #include <string>
 
 #include "capture/Camera.h"
-#include "estimator/MultiTagPoseEstimator.h"
+#include "estimator/CameraPoseEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
 #include "networktables/NetworkTableInstance.h"
@@ -205,9 +205,8 @@ void Pipeline::processing_loop() {
       SingleTagPoseEstimator::estimatePose(
           frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
-      MultiTagPoseEstimator::estimatePose(frame_observation, result,
-                                          cameraMatrix, distCoeffs, tag_size_m,
-                                          m_field);
+      CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
+                                        distCoeffs, tag_size_m, m_field);
       //
       // std::cout << "X: " << result.multi_tag_pose.pose_0.X().value()
       //           << std::endl;
