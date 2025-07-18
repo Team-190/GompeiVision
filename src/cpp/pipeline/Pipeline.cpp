@@ -231,7 +231,7 @@ void Pipeline::networktables_loop() {
     if (m_is_calibrating.load()) continue;
     AprilTagResult result;
     if (!m_estimated_poses.waitAndPop(result)) {
-      break;  // Shutdown has been signaled
+      continue;
     }
     if (m_output_publisher) {
       config::ConfigStore config;
