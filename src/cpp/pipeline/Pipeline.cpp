@@ -208,13 +208,13 @@ void Pipeline::processing_loop() {
       MultiTagPoseEstimator::estimatePose(frame_observation, result,
                                           cameraMatrix, distCoeffs, tag_size_m,
                                           m_field);
-
-      std::cout << "X: " << result.multi_tag_pose.pose_0.X().value()
-                << std::endl;
-      std::cout << "Y: " << result.multi_tag_pose.pose_0.Y().value()
-                << std::endl;
-      std::cout << "Z: " << result.multi_tag_pose.pose_0.Z().value()
-                << std::endl;
+      //
+      // std::cout << "X: " << result.multi_tag_pose.pose_0.X().value()
+      //           << std::endl;
+      // std::cout << "Y: " << result.multi_tag_pose.pose_0.Y().value()
+      //           << std::endl;
+      // std::cout << "Z: " << result.multi_tag_pose.pose_0.Z().value()
+      //           << std::endl;
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
