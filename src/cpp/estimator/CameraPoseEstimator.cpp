@@ -21,10 +21,10 @@ void CameraPoseEstimator::estimatePose(
   std::vector<frc::Pose3d> tagPoses;
 
   const std::vector<cv::Point3d> standard_object_points = {
-      {-tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},  // Top-left
-      {tag_size_m / 2.0f, tag_size_m / 2.0f, 0.0f},   // Top-right
-      {tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f},  // Bottom-right
-      {-tag_size_m / 2.0f, -tag_size_m / 2.0f, 0.0f}  // Bottom-left
+      {-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0},  // Corner 0: Bottom-left
+      {tag_size_m / 2.0, -tag_size_m / 2.0, 0.0},   // Corner 1: Bottom-right
+      {tag_size_m / 2.0, tag_size_m / 2.0, 0.0},    // Corner 2: Top-right
+      {-tag_size_m / 2.0, tag_size_m / 2.0, 0.0}    // Corner 3: Top-left
   };
 
   for (int i = 0; i < observation.tag_ids.size(); i++) {
@@ -102,13 +102,13 @@ void CameraPoseEstimator::estimatePose(
 
       std::cout << "defined pose" << std::endl;
 
+      frc::Pose3d field_to_tag_pose =
+          field_layout.find(observation.tag_ids[0])->second;
+
       auto camera_to_tag_pose_0 =
           PoseUtils::openCvPoseToWpilib(rvecs[0], tvecs[0]);
       auto camera_to_tag_pose_1 =
           PoseUtils::openCvPoseToWpilib(rvecs[1], tvecs[1]);
-
-      frc::Pose3d field_to_tag_pose =
-          field_layout.find(observation.tag_ids[0])->second;
 
       auto camera_to_tag_0 = frc::Transform3d(
           camera_to_tag_pose_0.Translation(), camera_to_tag_pose_0.Rotation());
