@@ -33,7 +33,7 @@ void CameraPoseEstimator::estimatePose(
       if (key == observation.tag_ids[i]) tagPose = field_layout.at(key);
     }
 
-    if (PoseUtils::isPoseZero(tagPose)) {
+    if (!PoseUtils::isPoseZero(tagPose)) {
       auto corner_0 =
           tagPose + frc::Transform3d(frc::Translation3d(
                                          0_m, units::meter_t(tag_size_m / 2.0),
