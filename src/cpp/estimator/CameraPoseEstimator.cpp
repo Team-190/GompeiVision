@@ -79,8 +79,8 @@ void CameraPoseEstimator::estimatePose(
                            cam_to_tag_pose0.Rotation())
               .Inverse());
       auto field_to_camera_1 = field_to_tag_pose.TransformBy(
-          frc::Transform3d(cam_to_tag_pose0.Translation(),
-                           cam_to_tag_pose0.Rotation())
+          frc::Transform3d(cam_to_tag_pose1.Translation(),
+                           cam_to_tag_pose1.Rotation())
               .Inverse());
 
       pose.pose_0 = frc::Pose3d(field_to_camera_0.Translation(),
