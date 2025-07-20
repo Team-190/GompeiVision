@@ -5,7 +5,7 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
-#include <cmath>
+#include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/opencv.hpp>
 
@@ -43,19 +43,17 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   cv::Rodrigues(rvec, R_cv);
 
   // 3. Apply camera-to-field rotation:
-  // OpenCV camera: x-right, y-down, z-forward
-  // WPILib field:  x-forward, y-left, z-up
-  // The rotation to convert between them is:
-  //   X_wpi =  Z_cv
-  //   Y_wpi = -X_cv
-  //   Z_wpi = -Y_cv
   cv::Mat cv_to_wpi = (cv::Mat_<double>(3, 3) << 0, 0, 1, -1, 0, 0, 0, -1, 0);
-
   cv::Mat R_wpi = cv_to_wpi * R_cv;
 
-  // 4. Convert to WPILib's Rotation3d (Eigen matrix)
+  // 4. Manually convert cv::Mat to Eigen::Matrix3d
   Eigen::Matrix3d eigen_R;
-  cv::cv2eigen(R_wpi, eigen_R);
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 3; ++col) {
+      eigen_R(row, col) = R_wpi.at<double>(row, col);
+    }
+  }
+
   frc::Rotation3d frc_rotation(eigen_R);
 
   return frc::Pose3d(frc_translation, frc_rotation);
