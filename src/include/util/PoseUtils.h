@@ -30,33 +30,20 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   assert(rvec.rows == 3 && rvec.cols == 1 && rvec.type() == CV_64F);
   assert(tvec.rows == 3 && tvec.cols == 1 && tvec.type() == CV_64F);
 
-  // 1. Translation conversion
+  // 1. Translation conversion (OpenCV to WPILib)
   const frc::Translation3d frc_translation(
       units::meter_t{tvec.at<double>(2, 0)},    // Z -> X
       units::meter_t{-tvec.at<double>(0, 0)},   // -X -> Y
       units::meter_t{-tvec.at<double>(1, 0)});  // -Y -> Z
 
-  // 2. Rotation conversion via rotation matrix
-  cv::Mat R_cv;
-  cv::Rodrigues(rvec, R_cv);  // 3x3 rotation matrix from OpenCV rvec
+  // 2. Rotation conversion (Axis-angle)
+  const Eigen::Vector3d axis(rvec.at<double>(2, 0),    // Z -> X
+                             -rvec.at<double>(0, 0),   // -X -> Y
+                             -rvec.at<double>(1, 0));  // -Y -> Z
 
-  // Transform rotation matrix from OpenCV camera frame to WPILib robot frame.
-  const cv::Mat cv_to_wpi = (cv::Mat_<double>(3, 3) << 0, 0, 1,  // X_wpi = Z_cv
-                             -1, 0, 0,   // Y_wpi = -X_cv
-                             0, -1, 0);  // Z_wpi = -Y_cv
+  const double angle = axis.norm();
 
-  cv::Mat R_wpi = cv_to_wpi * R_cv;
-
-  // Extract rotation from matrix manually (without Eigen)
-  const frc::Rotation3d frc_rotation(
-      units::radian_t(
-          std::atan2(R_wpi.at<double>(2, 1), R_wpi.at<double>(2, 2))),
-      units::radian_t(std::atan2(
-          -R_wpi.at<double>(2, 0),
-          std::sqrt(R_wpi.at<double>(2, 1) * R_wpi.at<double>(2, 1) +
-                    R_wpi.at<double>(2, 2) * R_wpi.at<double>(2, 2)))),
-      units::radian_t(
-          std::atan2(R_wpi.at<double>(1, 0), R_wpi.at<double>(0, 0))));
+  const frc::Rotation3d frc_rotation(axis, units::radian_t(angle));
 
   return frc::Pose3d(frc_translation, frc_rotation);
 }
