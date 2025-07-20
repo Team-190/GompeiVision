@@ -45,11 +45,11 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   //    WPILib
 
   const auto vec = Eigen::Vector3d(rvec.at<double>(2, 0), rvec.at<double>(0, 0),
-                             rvec.at<double>(1, 0));
+                                   rvec.at<double>(1, 0));
 
   const units::radian_t axis(sqrt(pow(rvec.at<double>(0, 0), 2) +
-                            pow(rvec.at<double>(1, 0), 2) +
-                            pow(rvec.at<double>(2, 0), 2)));
+                                  pow(rvec.at<double>(1, 0), 2) +
+                                  pow(rvec.at<double>(2, 0), 2)));
 
   const auto frc_rotation = frc::Rotation3d(vec, axis);
 
