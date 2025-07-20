@@ -5,6 +5,7 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
+#include <cmath>
 #include <opencv2/opencv.hpp>
 
 namespace PoseUtils {
@@ -27,42 +28,32 @@ namespace PoseUtils {
  */
 inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
                                       const cv::Mat& tvec) {
+  // Ensure the input matrices are 3x1 and of type double (CV_64F).
+  // This is the expected output format from cv::solvePnP.
   assert(rvec.rows == 3 && rvec.cols == 1 && rvec.type() == CV_64F);
   assert(tvec.rows == 3 && tvec.cols == 1 && tvec.type() == CV_64F);
 
+  // 1. Create the Translation3d, converting from OpenCV to WPILib coords.
+  //    WPILib (X, Y, Z) = OpenCV (Z, -X, -Y)
+  //    Use .at<double>(row, 0) to access elements of the 3x1 cv::Mat.
   const frc::Translation3d frc_translation(
       units::meter_t{tvec.at<double>(2, 0)},
       units::meter_t{-tvec.at<double>(0, 0)},
       units::meter_t{-tvec.at<double>(1, 0)});
 
-  const double angle_rad = cv::norm(rvec);
-  if (std::abs(angle_rad) < 1e-9) {
-    return frc::Pose3d(frc_translation, frc::Rotation3d{});
-  }
+  // 2. Create the Rotation3d, converting from OpenCV to WPILib coords.
+  //    WPILib
 
-  const double axis_x_wpilib = rvec.at<double>(2, 0) / angle_rad;
-  const double axis_y_wpilib = -rvec.at<double>(0, 0) / angle_rad;
-  const double axis_z_wpilib = -rvec.at<double>(1, 0) / angle_rad;
+  const auto vec = Eigen::Vector3d(rvec.at<double>(2, 0), rvec.at<double>(0, 0),
+                             rvec.at<double>(1, 0));
 
-  const double half_angle = angle_rad / 2.0;
-  const double s = std::sin(half_angle);
+  const units::radian_t axis(sqrt(pow(rvec.at<double>(0, 0), 2) +
+                            pow(rvec.at<double>(1, 0), 2) +
+                            pow(rvec.at<double>(2, 0), 2)));
 
-  const frc::Quaternion frc_quat(std::cos(half_angle),  // w
-                                 s * axis_x_wpilib,     // x
-                                 s * axis_y_wpilib,     // y
-                                 s * axis_z_wpilib      // z
-  );
+  const auto frc_rotation = frc::Rotation3d(vec, axis);
 
-  const frc::Rotation3d frc_rotation(frc_quat);
-
-  // Apply fixed camera -> WPILib transform (Pitch +90, Yaw 180)
-  constexpr frc::Rotation3d cv_to_wpilib_rot{
-      units::radian_t{0}, units::radian_t{M_PI / 2.0}, units::radian_t{M_PI}};
-
-  const frc::Rotation3d corrected_rotation =
-      frc_rotation.RotateBy(cv_to_wpilib_rot);
-
-  return frc::Pose3d(frc_translation, corrected_rotation);
+  return frc::Pose3d(frc_translation, frc_rotation);
 }
 
 inline cv::Point3f wpilibTranslationToOpenCV(
