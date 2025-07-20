@@ -44,14 +44,39 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   // 2. Create the Rotation3d, converting from OpenCV to WPILib coords.
   //    WPILib
 
-  const auto vec = Eigen::Vector3d(
-      rvec.at<double>(2, 0), -rvec.at<double>(0, 0), -rvec.at<double>(1, 0));
+  cv::Mat rotationMatrix;
+  cv::Rodrigues(rvec, rotationMatrix);
 
-  const units::radian_t axis(sqrt(pow(rvec.at<double>(0, 0), 2) +
-                                  pow(rvec.at<double>(1, 0), 2) +
-                                  pow(rvec.at<double>(2, 0), 2)));
+  // Fixed rotation matrix from OpenCV frame to WPILib frame
+  // OpenCV: +X right, +Y down, +Z forward
+  // WPILib: +X forward, +Y left, +Z up
+  // Mapping:
+  //   X_wpi = Z_cv
+  //   Y_wpi = -X_cv
+  //   Z_wpi = -Y_cv
+  Eigen::Matrix3d cv_to_wpi;
+  cv_to_wpi << 0, 0, 1, -1, 0, 0, 0, -1, 0;
 
-  const auto frc_rotation = frc::Rotation3d(vec, axis);
+  // Convert OpenCV rotationMatrix (cv::Mat) to Eigen
+  Eigen::Matrix3d cv_rotation;
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 3; ++col) {
+      cv_rotation(row, col) = rotationMatrix.at<double>(row, col);
+    }
+  }
+
+  // Apply coordinate frame rotation
+  Eigen::Matrix3d wpi_rotation =
+      cv_to_wpi * cv_rotation * cv_to_wpi.transpose();
+
+  // Convert to frc::Rotation3d
+  const frc::Rotation3d frc_rotation{
+      units::radian_t{
+          std::atan2(wpi_rotation(2, 1), wpi_rotation(2, 2))},  // roll
+      units::radian_t{std::asin(-wpi_rotation(2, 0))},          // pitch
+      units::radian_t{
+          std::atan2(wpi_rotation(1, 0), wpi_rotation(0, 0))}  // yaw
+  };
 
   return frc::Pose3d(frc_translation, frc_rotation);
 }
