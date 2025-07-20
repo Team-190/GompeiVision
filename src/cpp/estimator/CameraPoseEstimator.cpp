@@ -77,11 +77,10 @@ void CameraPoseEstimator::estimatePose(
     std::vector<double> errors;
 
     all_object_points = {
-        cv::Point3f(-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0),  // Top-Left
-        cv::Point3f(tag_size_m / 2.0, -tag_size_m / 2.0, 0.0),   // Top-Right
-        cv::Point3f(tag_size_m / 2.0, tag_size_m / 2.0, 0.0),    // Bottom-Right
-        cv::Point3f(-tag_size_m / 2.0, tag_size_m / 2.0, 0.0)    // Bottom-Left
-    };
+        cv::Point3f(-tag_size_m / 2.0, tag_size_m / 2.0, 0.0),
+        cv::Point3f(tag_size_m / 2.0, tag_size_m / 2.0, 0.0),
+        cv::Point3f(tag_size_m / 2.0, -tag_size_m / 2.0, 0.0),
+        cv::Point3f(-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0)};
 
     std::cout << "Defining vectors and Mats" << std::endl;
 
