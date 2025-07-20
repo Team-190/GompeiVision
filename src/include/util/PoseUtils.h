@@ -44,8 +44,8 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   // 2. Create the Rotation3d, converting from OpenCV to WPILib coords.
   //    WPILib
 
-  const auto vec = Eigen::Vector3d(rvec.at<double>(2, 0), rvec.at<double>(0, 0),
-                                   rvec.at<double>(1, 0));
+  const auto vec = Eigen::Vector3d(
+      rvec.at<double>(2, 0), -rvec.at<double>(0, 0), -rvec.at<double>(1, 0));
 
   const units::radian_t axis(sqrt(pow(rvec.at<double>(0, 0), 2) +
                                   pow(rvec.at<double>(1, 0), 2) +
