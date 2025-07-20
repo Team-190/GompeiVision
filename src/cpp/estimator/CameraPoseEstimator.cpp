@@ -21,10 +21,10 @@ void CameraPoseEstimator::estimatePose(
   std::vector<frc::Pose3d> tagPoses;
 
   const std::vector<cv::Point3d> standard_object_points = {
-      {0.0, tag_size_m / 2.0, -tag_size_m / 2.0},   // Corner 0: Bottom-left
-      {0.0, -tag_size_m / 2.0, -tag_size_m / 2.0},  // Corner 1: Bottom-right
-      {0.0, -tag_size_m / 2.0, tag_size_m / 2.0},   // Corner 2: Top-right
-      {0.0, tag_size_m / 2.0, tag_size_m / 2.0}     // Corner 3: Top-left
+      {-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0},  // Corner 0: Bottom-left
+      {tag_size_m / 2.0, -tag_size_m / 2.0, 0.0},   // Corner 1: Bottom-right
+      {tag_size_m / 2.0, tag_size_m / 2.0, 0.0},    // Corner 2: Top-right
+      {-tag_size_m / 2.0, tag_size_m / 2.0, 0.0}    // Corner 3: Top-left
   };
 
   for (int i = 0; i < observation.tag_ids.size(); i++) {
