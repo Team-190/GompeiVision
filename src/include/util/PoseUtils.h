@@ -5,7 +5,6 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
-#include <cmath>
 #include <opencv2/opencv.hpp>
 
 namespace PoseUtils {
@@ -28,30 +27,32 @@ namespace PoseUtils {
  */
 inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
                                       const cv::Mat& tvec) {
-  // Ensure the input matrices are 3x1 and of type double (CV_64F).
-  // This is the expected output format from cv::solvePnP.
   assert(rvec.rows == 3 && rvec.cols == 1 && rvec.type() == CV_64F);
   assert(tvec.rows == 3 && tvec.cols == 1 && tvec.type() == CV_64F);
 
-  // 1. Create the Translation3d, converting from OpenCV to WPILib coords.
-  //    WPILib (X, Y, Z) = OpenCV (Z, -X, -Y)
-  //    Use .at<double>(row, 0) to access elements of the 3x1 cv::Mat.
+  // Convert OpenCV rvec to 3x3 rotation matrix
+  cv::Mat R_cv;
+  cv::Rodrigues(rvec, R_cv);
+
+  Eigen::Matrix3d eigen_R_cv;
+  for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j) eigen_R_cv(i, j) = R_cv.at<double>(i, j);
+
+  // OpenCV to WPILib coordinate frame conversion matrix
+  Eigen::Matrix3d cv_to_wpi;
+  cv_to_wpi << 0, 0, 1, -1, 0, 0, 0, -1, 0;
+
+  // Rotate into WPILib frame
+  const Eigen::Matrix3d eigen_R_wpi =
+      cv_to_wpi * eigen_R_cv * cv_to_wpi.transpose();
+
+  // Translation conversion
   const frc::Translation3d frc_translation(
       units::meter_t{tvec.at<double>(2, 0)},
       units::meter_t{-tvec.at<double>(0, 0)},
       units::meter_t{-tvec.at<double>(1, 0)});
 
-  // 2. Create the Rotation3d, converting from OpenCV to WPILib coords.
-  //    WPILib
-
-  const auto vec = Eigen::Vector3d(
-      rvec.at<double>(2, 0), -rvec.at<double>(0, 0), -rvec.at<double>(1, 0));
-
-  const units::radian_t axis(sqrt(pow(rvec.at<double>(0, 0), 2) +
-                                  pow(rvec.at<double>(1, 0), 2) +
-                                  pow(rvec.at<double>(2, 0), 2)));
-
-  const auto frc_rotation = frc::Rotation3d(vec, axis);
+  const frc::Rotation3d frc_rotation(eigen_R_wpi);
 
   return frc::Pose3d(frc_translation, frc_rotation);
 }
