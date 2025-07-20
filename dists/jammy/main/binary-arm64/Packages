@@ -2,13 +2,13 @@ Package: gompeivision
 Version: 1.0
 Architecture: arm64
 Maintainer: ecscher84@gmail.com
-Installed-Size: 175356
+Installed-Size: 175377
 Depends: libtiff5, libjpeg8, libpng16-16, libavcodec58, libavformat58, libswscale5, libgtk-3-0, libudev1, libgl1-mesa-glx, libturbojpeg, libprotobuf23
 Filename: dists/jammy/main/binary-arm64/./GompeiVision-1.0-Linux.deb
-Size: 35795380
-MD5sum: ab331159648342195209b9da2774ddb4
-SHA1: b20214bb08aca5ab2063a8fa36f07d9cc21d5a30
-SHA256: 6db42a0ed07b55c028816c1b29fb702e1ddba7f9f26df1121c899d1bffa95d0f
+Size: 35794488
+MD5sum: 5fa3174116c90551553653fac3ea8682
+SHA1: 92498116155d7813b8037e901cdf6f1526660df5
+SHA256: cfeb7a4293e4d88f8a7b3f0542044294dd5cdd41080d6d799dcbd684da9634c5
 Section: devel
 Priority: optional
 Description: GompeiVision - An FRC vision solution
