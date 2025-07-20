@@ -5,7 +5,6 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
-#include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/opencv.hpp>
 
