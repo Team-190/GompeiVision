@@ -30,21 +30,18 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   assert(rvec.rows == 3 && rvec.cols == 1 && rvec.type() == CV_64F);
   assert(tvec.rows == 3 && tvec.cols == 1 && tvec.type() == CV_64F);
 
-  // 1. OpenCV Camera Frame translation to WPILib Field Frame
-  frc::Translation3d frc_translation(
+  const frc::Translation3d frc_translation(
       units::meter_t{tvec.at<double>(2, 0)},    // Z → X
       units::meter_t{-tvec.at<double>(0, 0)},   // -X → Y
       units::meter_t{-tvec.at<double>(1, 0)});  // -Y → Z
 
-  // 2. Convert rotation vector to rotation matrix
   cv::Mat R_cv;
   cv::Rodrigues(rvec, R_cv);
 
-  // 3. Apply camera-to-field rotation:
-  cv::Mat cv_to_wpi = (cv::Mat_<double>(3, 3) << 0, 0, 1, -1, 0, 0, 0, -1, 0);
-  cv::Mat R_wpi = cv_to_wpi * R_cv;
+  const cv::Mat cv_to_wpi =
+      (cv::Mat_<double>(3, 3) << 0, 0, 1, -1, 0, 0, 0, -1, 0);
+  cv::Mat R_wpi = cv_to_wpi * R_cv * cv_to_wpi.t();
 
-  // 4. Manually convert cv::Mat to Eigen::Matrix3d
   Eigen::Matrix3d eigen_R;
   for (int row = 0; row < 3; ++row) {
     for (int col = 0; col < 3; ++col) {
@@ -52,8 +49,7 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
     }
   }
 
-  frc::Rotation3d frc_rotation(eigen_R);
-
+  const frc::Rotation3d frc_rotation(eigen_R);
   return frc::Pose3d(frc_translation, frc_rotation);
 }
 
