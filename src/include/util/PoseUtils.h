@@ -30,29 +30,33 @@ inline frc::Pose3d openCvPoseToWpilib(const cv::Mat& rvec,
   assert(rvec.rows == 3 && rvec.cols == 1 && rvec.type() == CV_64F);
   assert(tvec.rows == 3 && tvec.cols == 1 && tvec.type() == CV_64F);
 
-  // Convert OpenCV rvec to 3x3 rotation matrix
-  cv::Mat R_cv;
-  cv::Rodrigues(rvec, R_cv);
-
-  Eigen::Matrix3d eigen_R_cv;
-  for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j) eigen_R_cv(i, j) = R_cv.at<double>(i, j);
-
-  // OpenCV to WPILib coordinate frame conversion matrix
-  Eigen::Matrix3d cv_to_wpi;
-  cv_to_wpi << 0, 0, 1, -1, 0, 0, 0, -1, 0;
-
-  // Rotate into WPILib frame
-  const Eigen::Matrix3d eigen_R_wpi =
-      cv_to_wpi * eigen_R_cv * cv_to_wpi.transpose();
-
-  // Translation conversion
+  // 1. Translation conversion
   const frc::Translation3d frc_translation(
-      units::meter_t{tvec.at<double>(2, 0)},
-      units::meter_t{-tvec.at<double>(0, 0)},
-      units::meter_t{-tvec.at<double>(1, 0)});
+      units::meter_t{tvec.at<double>(2, 0)},    // Z -> X
+      units::meter_t{-tvec.at<double>(0, 0)},   // -X -> Y
+      units::meter_t{-tvec.at<double>(1, 0)});  // -Y -> Z
 
-  const frc::Rotation3d frc_rotation(eigen_R_wpi);
+  // 2. Rotation conversion via rotation matrix
+  cv::Mat R_cv;
+  cv::Rodrigues(rvec, R_cv);  // 3x3 rotation matrix from OpenCV rvec
+
+  // Transform rotation matrix from OpenCV camera frame to WPILib robot frame.
+  const cv::Mat cv_to_wpi = (cv::Mat_<double>(3, 3) << 0, 0, 1,  // X_wpi = Z_cv
+                             -1, 0, 0,   // Y_wpi = -X_cv
+                             0, -1, 0);  // Z_wpi = -Y_cv
+
+  cv::Mat R_wpi = cv_to_wpi * R_cv;
+
+  // Extract rotation from matrix manually (without Eigen)
+  const frc::Rotation3d frc_rotation(
+      units::radian_t(
+          std::atan2(R_wpi.at<double>(2, 1), R_wpi.at<double>(2, 2))),
+      units::radian_t(std::atan2(
+          -R_wpi.at<double>(2, 0),
+          std::sqrt(R_wpi.at<double>(2, 1) * R_wpi.at<double>(2, 1) +
+                    R_wpi.at<double>(2, 2) * R_wpi.at<double>(2, 2)))),
+      units::radian_t(
+          std::atan2(R_wpi.at<double>(1, 0), R_wpi.at<double>(0, 0))));
 
   return frc::Pose3d(frc_translation, frc_rotation);
 }
