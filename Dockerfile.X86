@@ -155,17 +155,6 @@ RUN git clone https://github.com/yhirose/cpp-httplib.git && \
     make -j$(nproc) && \
     make install
 
-# --- Fetch only unsupported/Eigen headers from Eigen repo ---
-WORKDIR /opt
-
-RUN git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git
-
-# Copy unsupported directory into OpenCV include dir
-RUN cp -r eigen/unsupported /usr/local/include/opencv4/opencv2/
-
-# Clean up Eigen source after copy
-RUN rm -rf eigen
-
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size
 # Also run ldconfig to update the linker cache for the newly installed libraries
