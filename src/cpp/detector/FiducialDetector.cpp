@@ -81,14 +81,26 @@ void FiducialDetector::detect(const QueuedFrame& frame,
     // Add the corner points to the flat vector
     std::vector<double> flat_corners;
     flat_corners.reserve(8);
-    flat_corners.push_back(det->p[0][0]);
-    flat_corners.push_back(det->p[0][1]);
-    flat_corners.push_back(det->p[1][0]);
-    flat_corners.push_back(det->p[1][1]);
-    flat_corners.push_back(det->p[2][0]);
-    flat_corners.push_back(det->p[2][1]);
+    // Remap corners from the AprilTag library's order to the expected order
+    // Expected: Top-Left -> Top-Right -> Bottom-Right -> Bottom-Left
+    // AprilTag: Bottom-Left(0) -> Bottom-Right(1) -> Top-Right(2) ->
+    // Top-Left(3)
+
+    // 1. Top-Left (AprilTag corner 3)
     flat_corners.push_back(det->p[3][0]);
     flat_corners.push_back(det->p[3][1]);
+
+    // 2. Top-Right (AprilTag corner 2)
+    flat_corners.push_back(det->p[2][0]);
+    flat_corners.push_back(det->p[2][1]);
+
+    // 3. Bottom-Right (AprilTag corner 1)
+    flat_corners.push_back(det->p[1][0]);
+    flat_corners.push_back(det->p[1][1]);
+
+    // 4. Bottom-Left (AprilTag corner 0)
+    flat_corners.push_back(det->p[0][0]);
+    flat_corners.push_back(det->p[0][1]);
 
     observation.corners_pixels.push_back(flat_corners);
   }
