@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     pkg-config \
     nasm \
-    libtiff5 \
+    libtiff6 \
     libturbojpeg0-dev \
     # OpenCV Dependencies
     libjpeg-dev \
