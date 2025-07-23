@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 project(ThirdPartyIntegration)
 
 # --- Find all third-party packages ---
+list(APPEND CMAKE_PREFIX_PATH "/usr/local" "/usr")
+
 find_package(OpenCV REQUIRED)
 find_package(apriltag REQUIRED)
 find_package(wpiutil REQUIRED)
@@ -11,17 +13,20 @@ find_package(cameraserver REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
 find_package(fieldimages REQUIRED)
-find_package(ZSTD REQUIRED)
-find_package(httplib REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(udev REQUIRED libudev)
+pkg_check_modules(zstd REQUIRED libzstd)
+find_package(httplib REQUIRED)
 
 # Manually create an imported target for udev so we can use it like the others.
 add_library(udev::udev INTERFACE IMPORTED)
-
 target_include_directories(udev::udev INTERFACE ${udev_INCLUDE_DIRS})
 target_link_libraries(udev::udev INTERFACE ${udev_LIBRARIES})
+
+add_library(zstd::libzstd INTERFACE IMPORTED)
+target_include_directories(zstd::libzstd INTERFACE ${ZSTD_INCLUDE_DIRS})
+target_link_libraries(zstd::libzstd INTERFACE ${ZSTD_LIBRARIES})
 
 # NOTE: Adjust paths if installed elsewhere
 add_library(OpenPnP::Capture SHARED IMPORTED GLOBAL)
