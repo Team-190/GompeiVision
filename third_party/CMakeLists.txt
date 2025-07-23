@@ -70,5 +70,6 @@ target_link_libraries(third_party_libs INTERFACE
         fieldImages
         httplib::httplib
         udev::udev
+        zstd::libzstd
         OpenPnP::Capture
 )
