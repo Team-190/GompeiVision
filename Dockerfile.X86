@@ -1,5 +1,5 @@
 # Use an official Ubuntu base image for reproducible builds
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Set DEBIAN_FRONTEND to noninteractive to prevent prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     pkg-config \
     nasm \
-    libtiff5 \
+    libtiff6 \
     libturbojpeg0-dev \
     # OpenCV Dependencies
     libjpeg-dev \

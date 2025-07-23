@@ -1,5 +1,5 @@
 # Use an official Ubuntu base image for ARM64 for reproducible builds
-FROM arm64v8/ubuntu:22.04
+FROM arm64v8/ubuntu:24.04
 
 # Set DEBIAN_FRONTEND to noninteractive to prevent prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
