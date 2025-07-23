@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y \
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \
+    libzstd-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
