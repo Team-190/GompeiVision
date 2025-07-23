@@ -26,7 +26,7 @@ target_link_libraries(udev::udev INTERFACE ${udev_LIBRARIES})
 
 add_library(zstd::libzstd INTERFACE IMPORTED)
 target_include_directories(zstd::libzstd INTERFACE ${ZSTD_INCLUDE_DIRS})
-target_link_libraries(zstd::libzstd INTERFACE ${ZSTD_LIBRARIES})
+target_link_libraries(zstd::libzstd INTERFACE zstd)
 
 # NOTE: Adjust paths if installed elsewhere
 add_library(OpenPnP::Capture SHARED IMPORTED GLOBAL)
