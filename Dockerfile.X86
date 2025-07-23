@@ -1,4 +1,4 @@
-# Use an official Ubuntu base image for reproducible builds
+# Use an official Ubuntu base image for X86 reproducible builds
 FROM ubuntu:24.04
 
 # Set DEBIAN_FRONTEND to noninteractive to prevent prompts during installation
@@ -49,7 +49,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
-RUN pip install --no-cache-dir requests protobuf grpcio-tools
+RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools
 
 # Set a temporary working directory for building our dependencies
 WORKDIR /opt

@@ -5,6 +5,8 @@ FROM arm64v8/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all system dependencies required for the base OS and for building our dependencies
+RUN apt-get update && apt-get upgrade -y
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -47,7 +49,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
-RUN pip install --no-cache-dir requests protobuf grpcio-tools
+RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools
 
 # Set a temporary working directory for building our dependencies
 WORKDIR /opt
