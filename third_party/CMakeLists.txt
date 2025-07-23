@@ -11,6 +11,7 @@ find_package(cameraserver REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
 find_package(fieldimages REQUIRED)
+find_package(ZSTD REQUIRED)
 find_package(httplib REQUIRED)
 
 find_package(PkgConfig REQUIRED)
