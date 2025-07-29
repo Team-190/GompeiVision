@@ -9,11 +9,12 @@
 #include <string>
 #include <thread>
 
+#include "../io/OutputPublisher.h"
 #include "calibrator/CalibrationSession.h"
 #include "capture/Camera.h"
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
-#include "output/OutputPublisher.h"
+#include "io/ConfigInterface.h"
 #include "util/QueuedFiducialData.h"
 #include "util/ThreadSafeQueue.h"
 
@@ -26,9 +27,8 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const int deviceIndex, const std::string& hardware_id,
-           const int width, const int height, const bool setup_mode,
-           const std::string& role, const int stream_port,
-           const int control_port);
+           const int width, const int height, const std::string& role,
+           const int stream_port, const int control_port);
   ~Pipeline();
 
   void start();
@@ -78,8 +78,8 @@ class Pipeline {
   std::thread m_networktables_thread;
   std::thread m_server_thread;
   std::atomic<bool> m_is_running{false};
-  bool m_is_setup_mode;
 
   // --- NetworkTables Interface ---
+  std::unique_ptr<ConfigInterface> m_config_interface;
   std::unique_ptr<OutputPublisher> m_output_publisher;
 };

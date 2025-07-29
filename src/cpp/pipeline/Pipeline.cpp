@@ -16,25 +16,23 @@
 #include "estimator/CameraPoseEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
-#include "networktables/NetworkTableInstance.h"
-#include "output/OutputPublisher.h"
+#include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
-#include "util/PoseUtils.h"
 
 Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
-                   const int width, const int height, const bool setup_mode,
-                   const std::string& role, const int stream_port,
-                   const int control_port)
+                   const int width, const int height, const std::string& role,
+                   const int stream_port, const int control_port)
     : m_hardware_id(hardware_id),
       m_role(role),
       m_control_port(control_port),
-      m_stream_port(stream_port),
-      m_is_setup_mode(setup_mode) {
+      m_stream_port(stream_port) {
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
+
+  m_config_interface = std::make_unique<ConfigInterface>(m_role);
 
   // In setup mode, the camera captures in MJPG for streaming.
   // Otherwise, YUYV is preferred for performance.
-  const bool use_camera_mjpg = m_is_setup_mode;
+  const bool use_camera_mjpg = m_config_interface->isSetupMode();
   m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, width, height,
                                       use_camera_mjpg);
 
@@ -48,7 +46,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   m_stream_height = m_camera->getHeight();
 
   // The server and stream are only initialized and run in setup mode.
-  if (m_is_setup_mode) {
+  if (m_config_interface->isSetupMode()) {
     std::cout << "[" << m_role << "] Setup mode enabled. Initializing servers."
               << std::endl;
     m_mjpeg_server =
@@ -86,7 +84,7 @@ void Pipeline::start() {
   m_is_running = true;
   m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
-  if (m_is_setup_mode) {
+  if (m_config_interface->isSetupMode()) {
     m_server_thread = std::thread(&Pipeline::server_loop, this);
   }
 }
@@ -99,7 +97,7 @@ void Pipeline::stop() {
   // queues or the server's listen call. This prevents deadlocks during
   // shutdown.
   m_estimated_poses.shutdown();
-  if (m_is_setup_mode) {
+  if (m_config_interface->isSetupMode()) {
     m_server.stop();
   }
 
@@ -169,7 +167,7 @@ void Pipeline::processing_loop() {
     }
 
     // Push frame to MJPEG stream if in setup mode
-    if (m_is_setup_mode && m_cv_source) {
+    if (m_config_interface->isSetupMode() && m_cv_source) {
       m_cv_source->PutFrame(frame.frame);
     }
 
@@ -505,8 +503,7 @@ void Pipeline::server_loop() {
     std::string filename;
     {
       std::lock_guard<std::mutex> lock(m_role_mutex);
-      const char* home_dir = getenv("HOME");
-      if (home_dir) {
+      if (const char* home_dir = getenv("HOME")) {
         filename = std::string(home_dir) + "/GompeiVision/" + m_role +
                    "_calibration.yml";
       } else {
