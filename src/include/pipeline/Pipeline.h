@@ -27,17 +27,20 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const int deviceIndex, const std::string& hardware_id,
-           const int width, const int height, const std::string& role,
            const int stream_port, const int control_port);
   ~Pipeline();
 
   void start();
   void stop();
 
+  bool isRunning() const;
+
  private:
   void processing_loop();
   void networktables_loop();
   void server_loop();
+
+  std::atomic<bool> m_is_running{false};
 
   std::map<int, frc::Pose3d> m_field;
 
@@ -77,7 +80,6 @@ class Pipeline {
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
   std::thread m_server_thread;
-  std::atomic<bool> m_is_running{false};
 
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;
