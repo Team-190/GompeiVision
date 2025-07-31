@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y \
     libavutil-dev \
     libswscale-dev \
     libzstd-dev \
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
