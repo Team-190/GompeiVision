@@ -1,0 +1,23 @@
+Origin: Team-190 GompeiVision
+Label: GompeiVision
+Suite: stable
+Version: 1.0
+Codename: noble
+Architectures: amd64 arm64
+Components: main
+Description: GompeiVision APT repository hosted on GitHub Pages
+Date: Thu, 31 Jul 2025 16:36:33 +0000
+MD5Sum:
+ 2944a2a24974c01a219a1240e57e9cea         53966964 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ eaf613c2651f3d77d10863ed76c3ac44              432 main/binary-amd64/Packages.gz
+ 2348b0fb6276f532f2e792c57be49f69              592 main/binary-amd64/Packages
+ 71cfea4304daadb10024ea615757b7db         36424340 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ 4d6b83423b1a5b158a44765a01873a7b              434 main/binary-arm64/Packages.gz
+ 920aa428d1adbde441f27077de51dff7              592 main/binary-arm64/Packages
+SHA256:
+ 434a54201b5c1bfb0e5a61d02cb51266554aca30529b7141ea662f8eb91981c1         53966964 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ b06773e4dbeaf7aacad5516614e0c125d6f1299041be348a033c382e0ff2ca45              432 main/binary-amd64/Packages.gz
+ 4aa32884000540b06cb3145be01a5af20ddbc87a36a23895e170602a791c4834              592 main/binary-amd64/Packages
+ 02c57386b690e9bc6b9f74f9ff370f3267812158b303a29da5f6bc24a6b5f9a3         36424340 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ 3426690933707f1f0648534512b9c310e5b0c916f6b96926158fed6a98e64315              434 main/binary-arm64/Packages.gz
+ 8145d3fda7a972dad6437ebffb22a68ed2e88658c3c71787913dd566fd55c497              592 main/binary-arm64/Packages
