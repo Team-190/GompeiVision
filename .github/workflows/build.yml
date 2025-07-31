@@ -186,7 +186,7 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           # Set up variables
-          DISTRO="noble"
+          DISTRO="numbat"
           REPO_DIR="./apt-repo"
           
           # Create the repository structure
