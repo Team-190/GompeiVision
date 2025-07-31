@@ -8,6 +8,8 @@
 // Dashboard)
 namespace nt_keys {
 constexpr auto kSetupMode = "setup_mode";
+constexpr auto kRole = "role";
+constexpr auto kHardwareID = "hardware_id";
 constexpr auto kCameraMatrix = "camera_matrix";
 constexpr auto kDistCoeffs = "distortion_coefficients";
 constexpr auto kExposure = "exposure";
@@ -16,45 +18,57 @@ constexpr auto kWidth = "width";
 constexpr auto kHeight = "height";
 }  // namespace nt_keys
 
-ConfigInterface::ConfigInterface(const std::string& tableName)
-    : m_ntInst(nt::NetworkTableInstance::GetDefault()),
-      m_table(m_ntInst.GetTable(tableName)),
-      m_setupMode(false),
-      m_exposure(0),
-      m_gain(0),
-      m_width(0),
-      m_height(0) {
-  // --- Initialize Subscribers ---
-  // Subscribe to each topic with a default value. This ensures that if the
-  // topic doesn't exist on the server yet, we have a sensible default.
-  m_setupModeSub =
-      m_table->GetBooleanTopic(nt_keys::kSetupMode).Subscribe(false);
-  m_cameraMatrixSub =
-      m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Subscribe({});
-  m_distCoeffsSub =
-      m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Subscribe({});
-  m_exposureSub = m_table->GetIntegerTopic(nt_keys::kExposure).Subscribe(0);
-  m_gainSub = m_table->GetIntegerTopic(nt_keys::kGain).Subscribe(0);
-  m_widthSub = m_table->GetIntegerTopic(nt_keys::kWidth).Subscribe(0);
-  m_heightSub = m_table->GetIntegerTopic(nt_keys::kHeight).Subscribe(0);
+ConfigInterface::ConfigInterface(const std::string& hardwareID) {
+  for (const auto subtable : nt::NetworkTableInstance::GetDefault()
+                                 .GetTable("configs")
+                                 ->GetSubTables()) {
+    const auto table =
+        nt::NetworkTableInstance::GetDefault().GetTable("configs")->GetSubTable(
+            subtable);
+    if (table->GetEntry(nt_keys::kHardwareID).GetString("invalid") ==
+        hardwareID) {
+      m_table = table;
+    }
+  }
 
-  // --- Initialize Publishers ---
-  // Get publishers for each topic. These will be used to send data back
-  // when in setup mode.
-  m_cameraMatrixPub =
-      m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Publish();
-  m_distCoeffsPub =
-      m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Publish();
-  m_exposurePub = m_table->GetIntegerTopic(nt_keys::kExposure).Publish();
-  m_gainPub = m_table->GetIntegerTopic(nt_keys::kGain).Publish();
-  m_widthPub = m_table->GetIntegerTopic(nt_keys::kWidth).Publish();
-  m_heightPub = m_table->GetIntegerTopic(nt_keys::kHeight).Publish();
+  if (m_table) {
+    // --- Initialize Subscribers ---
+    // Subscribe to each topic with a default value. This ensures
+    // that if the topic doesn't exist on the server yet, we have
+    // a sensible default.
+    m_setupModeSub =
+        m_table->GetBooleanTopic(nt_keys::kSetupMode).Subscribe(false);
+    m_roleSub = m_table->GetStringTopic(nt_keys::kRole).Subscribe("");
+    m_cameraMatrixSub =
+        m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Subscribe({});
+    m_distCoeffsSub =
+        m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Subscribe({});
+    m_exposureSub = m_table->GetIntegerTopic(nt_keys::kExposure).Subscribe(0);
+    m_gainSub = m_table->GetIntegerTopic(nt_keys::kGain).Subscribe(0);
+    m_widthSub = m_table->GetIntegerTopic(nt_keys::kWidth).Subscribe(0);
+    m_heightSub = m_table->GetIntegerTopic(nt_keys::kHeight).Subscribe(0);
 
-  // Perform an initial update to populate the cache with values from
-  // NetworkTables if they exist.
-  update();
+    // --- Initialize Publishers ---
+    // Get publishers for each topic. These will be used to send data back
+    // when in setup mode.
+    m_cameraMatrixPub =
+        m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Publish();
+    m_distCoeffsPub =
+        m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Publish();
+    m_exposurePub = m_table->GetIntegerTopic(nt_keys::kExposure).Publish();
+    m_gainPub = m_table->GetIntegerTopic(nt_keys::kGain).Publish();
+    m_widthPub = m_table->GetIntegerTopic(nt_keys::kWidth).Publish();
+    m_heightPub = m_table->GetIntegerTopic(nt_keys::kHeight).Publish();
 
-  logInfo("ConfigInterface initialized for table: " + tableName);
+    // Perform an initial update to populate the cache with values from
+    // NetworkTables if they exist.
+    update();
+
+    logInfo("ConfigInterface initialized for table: " + hardwareID);
+  } else {
+    logError("ConfigInterface failed to initialize table: " + hardwareID +
+             " Network table not found");
+  }
 }
 
 ConfigInterface::~ConfigInterface() {}
@@ -120,6 +134,8 @@ void ConfigInterface::setSetupMode(const bool setupMode) {
 }
 
 // --- Configuration Getters ---
+
+std::string ConfigInterface::getRole() const { return m_role; }
 
 cv::Mat ConfigInterface::getCameraMatrix() const { return m_cameraMatrix; }
 

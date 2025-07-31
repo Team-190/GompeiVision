@@ -1,13 +1,22 @@
+// src/cpp/pipeline/PipelineManager.cpp
+
 #include "pipeline/PipelineManager.h"
 
 #include <chrono>
+#include <cstring>     // For strerror
+#include <filesystem>  // For robust path manipulation (C++17)
 #include <iostream>
-#include <ranges>
+#include <string>
+#include <vector>
+
+// For process management on POSIX systems
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "openpnp-capture.h"
+#include "util/Platform.h"  // Our helper for finding the executable path
 
-// --- RAII Wrapper for CapContext ---
-// Ensures that the openpnp-capture context is automatically released.
 struct CapContextDeleter {
   void operator()(const CapContext ctx) const {
     if (ctx) {
@@ -17,7 +26,6 @@ struct CapContextDeleter {
   }
 };
 using CapContextPtr = std::unique_ptr<void, CapContextDeleter>;
-// ---------------------------------
 
 PipelineManager& PipelineManager::getInstance() {
   static PipelineManager instance;
@@ -39,10 +47,30 @@ void PipelineManager::startAll() {
     return;
   }
 
-  std::cout << "[Manager] Detecting cameras and starting pipelines..."
+  // --- 1. Robustly determine the worker executable path ---
+  const std::string manager_path_str = platform::get_self_executable_path();
+  if (manager_path_str.empty()) {
+    std::cerr << "[Manager] FATAL: Could not determine own executable path. "
+                 "Cannot launch workers."
+              << std::endl;
+    return;
+  }
+
+  // Use std::filesystem to construct the path to the worker, assuming it's
+  // in the same directory as the manager executable.
+  const std::filesystem::path worker_path =
+      std::filesystem::path(manager_path_str).parent_path() /
+      "gompei_pipeline_worker";
+  const std::string worker_executable_str = worker_path.string();
+
+  std::cout << "[Manager] Resolved worker executable path to: "
+            << worker_executable_str << std::endl;
+
+  // --- 2. Detect Cameras ---
+  std::cout << "[Manager] Detecting cameras and preparing to launch pipeline "
+               "processes..."
             << std::endl;
 
-  // --- Camera Enumeration using openpnp-capture C API ---
   const CapContextPtr ctx(Cap_createContext());
   if (!ctx) {
     std::cerr << "[Manager] ERROR: Failed to create openpnp-capture context."
@@ -60,9 +88,8 @@ void PipelineManager::startAll() {
 
   std::cout << "[Manager] Found " << device_count << " camera(s)." << std::endl;
 
+  // --- 3. Launch a process for each camera ---
   std::lock_guard<std::mutex> lock(m_pipelines_mutex);
-  int default_width = 1280;
-  int default_height = 720;
 
   for (uint32_t i = 0; i < device_count; ++i) {
     constexpr int control_port_base = 1182;
@@ -84,28 +111,63 @@ void PipelineManager::startAll() {
     std::cout << "[Manager] Found camera: " << name << " (ID: " << hardware_id
               << ", Index: " << device_index << ")" << std::endl;
 
-    // Assign a unique role based on hardware ID.
-    std::string role = "cam_" + hardware_id;
+    const int stream_port = stream_port_base + (device_index * 2);
+    const int control_port = control_port_base + (device_index * 2);
+    const int default_width = 1280;
+    const int default_height = 720;
 
-    // Assign unique network ports for each pipeline to avoid conflicts.
-    int stream_port = stream_port_base + (device_index * 2);
-    int control_port = control_port_base + (device_index * 2);
+    pid_t pid = fork();
 
-    auto pipeline = std::make_unique<Pipeline>(device_index, hardware_id,
-                                               default_width, default_height,
-                                               role, stream_port, control_port);
+    if (pid == -1) {
+      std::cerr << "[Manager] ERROR: Failed to fork process for camera "
+                << hardware_id << std::endl;
+      continue;
+    }
 
-    pipeline->start();
-    m_pipelines[hardware_id] = std::move(pipeline);
+    if (pid == 0) {
+      // --- This is the child process ---
+      std::cout << "[Manager] Starting worker for " << hardware_id << "..."
+                << std::endl;
+
+      const std::string dev_idx_str = std::to_string(device_index);
+      const std::string width_str = std::to_string(default_width);
+      const std::string height_str = std::to_string(default_height);
+      const std::string stream_port_str = std::to_string(stream_port);
+      const std::string control_port_str = std::to_string(control_port);
+
+      // By convention, argv[0] is the program name itself.
+      const std::string worker_name = "gompei_pipeline_worker";
+
+      // Prepare arguments for execv. The list must be null-terminated.
+      const char* args[] = {worker_name.c_str(),      dev_idx_str.c_str(),
+                            hardware_id.c_str(),      width_str.c_str(),
+                            height_str.c_str(),       stream_port_str.c_str(),
+                            control_port_str.c_str(), nullptr};
+
+      // Replace the child process image with the worker executable.
+      execv(worker_executable_str.c_str(), const_cast<char* const*>(args));
+
+      // If execv returns, an error occurred. This is a fatal error for the
+      // child.
+      std::cerr << "[Worker] FATAL: execv failed for " << worker_executable_str
+                << ". Error: " << strerror(errno) << std::endl;
+      _exit(1);  // Use _exit in child after fork to avoid calling destructors.
+    } else {
+      // --- This is the parent process ---
+      std::cout << "[Manager] Launched worker for " << hardware_id
+                << " with PID " << pid << std::endl;
+      m_child_pids[hardware_id] = pid;
+    }
   }
 
-  if (!m_pipelines.empty()) {
+  if (!m_child_pids.empty()) {
     m_is_running = true;
     m_heartbeat_thread = std::thread(&PipelineManager::heartbeat_loop, this);
-    std::cout << "[Manager] Started " << m_pipelines.size() << " pipelines."
-              << std::endl;
+    std::cout << "[Manager] Launched " << m_child_pids.size()
+              << " pipeline processes." << std::endl;
   } else {
-    std::cerr << "[Manager] ERROR: Failed to start any pipelines." << std::endl;
+    std::cerr << "[Manager] ERROR: Failed to launch any pipeline processes."
+              << std::endl;
   }
 }
 
@@ -114,28 +176,56 @@ void PipelineManager::stopAll() {
     return;  // Already stopped or stopping
   }
 
-  std::cout << "[Manager] Stopping all pipelines..." << std::endl;
+  std::cout << "[Manager] Stopping all pipeline processes..." << std::endl;
 
   if (m_heartbeat_thread.joinable()) {
     m_heartbeat_thread.join();
   }
 
   std::lock_guard<std::mutex> lock(m_pipelines_mutex);
-  for (auto& val : m_pipelines | std::views::values) {
-    if (val) {
-      val->stop();
-    }
+  for (const auto& [id, pid] : m_child_pids) {
+    std::cout << "[Manager] Sending SIGTERM to process " << pid
+              << " for camera " << id << std::endl;
+    kill(pid, SIGTERM);
   }
-  m_pipelines.clear();
-  std::cout << "[Manager] All pipelines stopped and cleared." << std::endl;
+
+  // Wait for all child processes to terminate.
+  int status;
+  pid_t wpid;
+  while ((wpid = waitpid(-1, &status, 0)) > 0) {
+    std::cout << "[Manager] Worker process " << wpid << " terminated."
+              << std::endl;
+  }
+
+  m_child_pids.clear();
+  std::cout << "[Manager] All pipeline processes stopped and cleared."
+            << std::endl;
 }
 
 void PipelineManager::heartbeat_loop() {
   while (m_is_running) {
     {
       std::lock_guard<std::mutex> lock(m_pipelines_mutex);
-      std::cout << "[Manager] Heartbeat: " << m_pipelines.size()
-                << " pipelines are active." << std::endl;
+      std::cout << "[Manager] Heartbeat: " << m_child_pids.size()
+                << " pipeline processes are being managed." << std::endl;
+
+      // Check if processes are still alive and clean up if not.
+      std::vector<std::string> dead_pipelines;
+      for (const auto& [id, pid] : m_child_pids) {
+        // kill with signal 0 is a standard POSIX way to check for existence.
+        if (kill(pid, 0) == -1 && errno == ESRCH) {
+          std::cerr << "[Manager] Heartbeat: Detected that worker for " << id
+                    << " (PID " << pid << ") has died unexpectedly."
+                    << std::endl;
+          dead_pipelines.push_back(id);
+        }
+      }
+
+      // Clean up any dead pipelines from our map.
+      // In a more advanced system, you might try to restart them here.
+      for (const auto& id : dead_pipelines) {
+        m_child_pids.erase(id);
+      }
     }
     std::this_thread::sleep_for(std::chrono::seconds(15));
   }

@@ -5,6 +5,7 @@
 #include <networktables/IntegerTopic.h>
 #include <networktables/NetworkTable.h>
 #include <networktables/NetworkTableInstance.h>
+#include <networktables/StringTopic.h>
 
 #include <memory>
 #include <opencv2/core/mat.hpp>
@@ -71,6 +72,7 @@ class ConfigInterface {
 
   // --- Configuration Getters ---
 
+  std::string getRole() const;
   cv::Mat getCameraMatrix() const;
   cv::Mat getDistortionCoeffs() const;
   int getExposure() const;
@@ -121,11 +123,11 @@ class ConfigInterface {
   void setHeight(int height);
 
   // --- NetworkTables Handles ---
-  nt::NetworkTableInstance m_ntInst;
   std::shared_ptr<nt::NetworkTable> m_table;
 
   // Subscribers for each configuration parameter
   nt::BooleanSubscriber m_setupModeSub;
+  nt::StringSubscriber m_roleSub;
   nt::DoubleArraySubscriber m_cameraMatrixSub;
   nt::DoubleArraySubscriber m_distCoeffsSub;
   nt::IntegerSubscriber m_exposureSub;
@@ -144,6 +146,7 @@ class ConfigInterface {
   // --- In-Memory Configuration Cache ---
   // These members hold the last valid values received from NetworkTables.
   bool m_setupMode;
+  std::string m_role;
   cv::Mat m_cameraMatrix;
   cv::Mat m_distortionCoeffs;
   int m_exposure;

@@ -16,7 +16,9 @@ set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 # --- Corrected Dependency Line ---
 # This is the crucial part. It tells the final .deb package that it requires
 # these other system packages to be installed in order to run.
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "libtiff5, libjpeg8, libpng16-16, libavcodec58, libavformat58, libswscale5, libgtk-3-0, libudev1, libgl1-mesa-glx, libturbojpeg, libprotobuf23")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "libtiff6, libjpeg62, libpng16-16, libavcodec60, libavformat60, libswscale7, libgtk-3-0, libudev1, libgl1-mesa-glx, libturbojpeg0, libprotobuf26"
+)
 
 # --- Architecture Detection ---
 # Intelligently determine the Debian architecture based on the build platform

@@ -20,21 +20,22 @@
 #include "pipeline/PipelineHelper.h"
 
 Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
-                   const int width, const int height, const std::string& role,
                    const int stream_port, const int control_port)
     : m_hardware_id(hardware_id),
-      m_role(role),
       m_control_port(control_port),
       m_stream_port(stream_port) {
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
-  m_config_interface = std::make_unique<ConfigInterface>(m_role);
+  m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
+
+  m_role = m_config_interface->getRole();
 
   // In setup mode, the camera captures in MJPG for streaming.
   // Otherwise, YUYV is preferred for performance.
   const bool use_camera_mjpg = m_config_interface->isSetupMode();
-  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, width, height,
-                                      use_camera_mjpg);
+  m_camera = std::make_unique<Camera>(
+      deviceIndex, hardware_id, m_config_interface->getWidth(),
+      m_config_interface->getHeight(), use_camera_mjpg);
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -50,9 +51,9 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     std::cout << "[" << m_role << "] Setup mode enabled. Initializing servers."
               << std::endl;
     m_mjpeg_server =
-        std::make_unique<cs::MjpegServer>(role + "_stream", stream_port);
+        std::make_unique<cs::MjpegServer>(m_role + "_stream", stream_port);
     m_cv_source = std::make_unique<cs::CvSource>(
-        role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
+        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
         m_stream_height, 30);
 
     CS_Status status = 0;
@@ -111,6 +112,8 @@ void Pipeline::stop() {
     m_calibration_worker_thread.join();
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
+
+bool Pipeline::isRunning() const { return m_is_running; }
 
 void Pipeline::processing_loop() {
   // --- 1. Initialization ---
@@ -287,17 +290,6 @@ void Pipeline::server_loop() {
       R"raw(" alt="Live MJPEG Stream">
         </div>
         <div class="controls">
-            <!-- FIX: Added Role settings UI back -->
-            <h2>Pipeline Settings</h2>
-            <form id="roleForm">
-                <div class="form-grid">
-                    <label for="roleInput">Camera Role:</label>
-                    <input type="text" id="roleInput" placeholder="e.g., front_cam" required>
-                </div>
-                <button type="submit">Set Role</button>
-            </form>
-            <hr style="margin: 20px 0; border: 1px solid #eee;">
-
             <h2>Calibration Control</h2>
             <form id="startForm">
                 <div class="form-grid">
@@ -326,8 +318,6 @@ void Pipeline::server_loop() {
             streamImg.src = `http://${window.location.hostname}:)raw" +
       std::to_string(m_stream_port) + R"raw(/stream.mjpg`;
 
-            // FIX: Added event listener for the new role form
-            document.getElementById('roleForm').onsubmit = handleSetRole;
             document.getElementById('startForm').onsubmit = handleStartCalibration;
             document.getElementById('captureBtn').onclick = () => handlePost('/calibration/capture');
             document.getElementById('finishBtn').onclick = () => handlePost('/calibration/finish');
@@ -338,34 +328,6 @@ void Pipeline::server_loop() {
         const frameCountSpan = document.getElementById('frameCount');
         const statusSpan = document.getElementById('statusMessage');
         const finishBtn = document.getElementById('finishBtn');
-        const mainTitle = document.getElementById('main-title');
-
-        // FIX: Added handler function for setting the role
-        function handleSetRole(event) {
-            event.preventDefault();
-            const roleInput = document.getElementById('roleInput');
-            const newRole = roleInput.value.trim();
-            if (!newRole) {
-                statusSpan.textContent = 'Role cannot be empty.';
-                return false;
-            }
-            statusSpan.textContent = `Setting role to ${newRole}...`;
-            fetch('/role/set', {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: newRole
-            })
-            .then(res => res.text())
-            .then(text => {
-                statusSpan.textContent = text;
-                if (text.startsWith('OK')) {
-                    mainTitle.textContent = `GompeiVision Pipeline: ${newRole}`;
-                    roleInput.value = ''; // Clear input on success
-                }
-            })
-            .catch(error => { statusSpan.textContent = 'Error: ' + error; });
-            return false;
-        }
 
         function handleStartCalibration(event) {
             event.preventDefault();
@@ -415,22 +377,7 @@ void Pipeline::server_loop() {
         res.set_content(html_content, "text/html");
       });
 
-  // Endpoint to set the role
-  m_server.Post(
-      "/role/set", [this](const httplib::Request& req, httplib::Response& res) {
-        const std::string new_role = req.body;
-        if (new_role.empty()) {
-          res.status = 400;
-          res.set_content("ERROR: Role name cannot be empty.", "text/plain");
-          return;
-        }
-        {
-          std::lock_guard<std::mutex> lock(m_role_mutex);
-          m_role = new_role;
-        }
-        std::cout << "[INFO] Role changed to: " << new_role << std::endl;
-        res.set_content("OK: Role updated to " + new_role, "text/plain");
-      });
+  // Removed: /role/set endpoint
 
   // Calibration control endpoints
   m_server.Post("/calibration/start", [this](const httplib::Request& req,
@@ -489,7 +436,6 @@ void Pipeline::server_loop() {
       return;
     }
 
-    // Join the previous worker thread if it's still joinable
     if (m_calibration_worker_thread.joinable()) {
       m_calibration_worker_thread.join();
     }
@@ -507,12 +453,10 @@ void Pipeline::server_loop() {
         filename = std::string(home_dir) + "/GompeiVision/" + m_role +
                    "_calibration.yml";
       } else {
-        filename =
-            m_role + "_calibration.yml";  // Fallback to current directory
+        filename = m_role + "_calibration.yml";
       }
     }
 
-    // Launch the heavy computation in a new background thread
     m_calibration_worker_thread = std::thread(
         &PipelineHelper::async_finish_calibration, std::ref(m_is_calibrating),
         std::ref(m_calibration_mutex), std::ref(m_calibration_session),
@@ -522,7 +466,7 @@ void Pipeline::server_loop() {
     res.set_content("OK: Final calibration process started in the background.",
                     "text/plain");
   });
-  // Start listening
+
   m_server.listen("0.0.0.0", m_control_port);
   std::cout << "[" << m_role << "] Control panel server stopped." << std::endl;
 }
