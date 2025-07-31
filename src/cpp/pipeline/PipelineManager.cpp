@@ -60,7 +60,7 @@ void PipelineManager::startAll() {
   // in the same directory as the manager executable.
   const std::filesystem::path worker_path =
       std::filesystem::path(manager_path_str).parent_path() /
-      "gompei_pipeline_worker";
+      "GompeiVisionProcesss";
   const std::string worker_executable_str = worker_path.string();
 
   std::cout << "[Manager] Resolved worker executable path to: "
