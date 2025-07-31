@@ -136,7 +136,7 @@ void PipelineManager::startAll() {
       const std::string control_port_str = std::to_string(control_port);
 
       // By convention, argv[0] is the program name itself.
-      const std::string worker_name = "gompei_pipeline_worker";
+      const std::string worker_name = "GompeiVisionProcess";
 
       // Prepare arguments for execv. The list must be null-terminated.
       const char* args[] = {worker_name.c_str(),      dev_idx_str.c_str(),
