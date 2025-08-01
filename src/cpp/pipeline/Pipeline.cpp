@@ -33,9 +33,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   // In setup mode, the camera captures in MJPG for streaming.
   // Otherwise, YUYV is preferred for performance.
   const bool use_camera_mjpg = m_config_interface->isSetupMode();
-  m_camera = std::make_unique<Camera>(
-      deviceIndex, hardware_id, m_config_interface->getWidth(),
-      m_config_interface->getHeight(), use_camera_mjpg);
+  m_camera =
+      std::make_unique<Camera>(deviceIndex, hardware_id, 1600, 1304, false);
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -53,8 +52,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     m_mjpeg_server =
         std::make_unique<cs::MjpegServer>(m_role + "_stream", stream_port);
     m_cv_source = std::make_unique<cs::CvSource>(
-        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
-        m_stream_height, 60);
+        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, 1600, 1304, 60);
 
     CS_Status status = 0;
     cs::SetSinkSource(m_mjpeg_server->GetHandle(),
