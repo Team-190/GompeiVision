@@ -54,7 +54,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
         std::make_unique<cs::MjpegServer>(m_role + "_stream", stream_port);
     m_cv_source = std::make_unique<cs::CvSource>(
         m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
-        m_stream_height, 30);
+        m_stream_height, 60);
 
     CS_Status status = 0;
     cs::SetSinkSource(m_mjpeg_server->GetHandle(),
