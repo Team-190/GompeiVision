@@ -184,9 +184,9 @@ void Pipeline::processing_loop() {
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    // std::cout << "[" << m_role << "] FPS: " << smoothed_fps
-    //           << " | Pose Results Queued: " << m_estimated_poses.size()
-    //           << std::endl;
+    std::cout << "[" << m_role << "] FPS: " << smoothed_fps
+              << " | Pose Results Queued: " << m_estimated_poses.size()
+              << std::endl;
 
     // Only run pose estimation if we have detections AND calibration data.
     if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
