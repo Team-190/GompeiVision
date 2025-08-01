@@ -21,10 +21,8 @@ class Camera {
    * @param hardwareID A unique, persistent ID for logging and identification.
    * @param width The desired frame width for the camera stream.
    * @param height The desired frame height for the camera stream.
-   * @param useMJPG Set to true to request MJPG format, false for default/YUYV.
    */
-  Camera(int deviceIndex, const std::string& hardwareID, int width, int height,
-         bool useMJPG);
+  Camera(int deviceIndex, const std::string& hardwareID, int width, int height);
 
   /**
    * @brief Destructor that ensures the camera stream is properly released.

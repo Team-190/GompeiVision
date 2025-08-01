@@ -4,7 +4,7 @@
 
 // Constructor: Initializes and opens the camera using OpenCV
 Camera::Camera(const int deviceIndex, const std::string& hardwareID,
-               const int width, const int height, const bool useMJPG)
+               const int width, const int height)
     : m_hardwareID(hardwareID), m_deviceIndex(deviceIndex) {
   logInfo("Initializing with OpenCV backend...");
 
@@ -21,17 +21,6 @@ Camera::Camera(const int deviceIndex, const std::string& hardwareID,
   logInfo("Camera stream opened successfully.");
 
   // --- Configure Camera Properties ---
-
-  // Set the desired codec (FourCC)
-  if (useMJPG) {
-    // Request MJPG format.
-    if (m_capture.set(cv::CAP_PROP_FOURCC,
-                      cv::VideoWriter::fourcc('M', 'J', 'P', 'G'))) {
-      logInfo("Successfully set format to MJPG.");
-    } else {
-      logError("Warning: Failed to set format to MJPG.");
-    }
-  }
 
   // Set the desired frame dimensions.
   if (m_capture.set(cv::CAP_PROP_FRAME_WIDTH, width)) {
