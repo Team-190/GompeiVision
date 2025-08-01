@@ -5,10 +5,10 @@ Maintainer: ecscher84@gmail.com
 Installed-Size: 184099
 Depends: libavcodec60 (>= 7:6.0), libavformat60 (>= 7:6.0), libavutil58 (>= 7:6.0), libbrotli1 (>= 0.6.0), libc6 (>= 2.38), libcairo2 (>= 1.2.4), libfreetype6 (>= 2.2.1), libgcc-s1 (>= 4.5), libgdk-pixbuf-2.0-0 (>= 2.22.0), libgl1, libglib2.0-0t64 (>= 2.32.0), libgtk-3-0t64 (>= 3.16.2), libharfbuzz0b (>= 0.9.9), libjpeg8 (>= 8c), libpng16-16t64 (>= 1.6.2), libprotobuf32t64 (>= 3.21.12), libstdc++6 (>= 13.1), libswscale7 (>= 7:6.0), libtiff6 (>= 4.0.3), libturbojpeg (>= 1.2.90), libwebp7 (>= 1.3.2), libwebpdemux2 (>= 1.3.2), libwebpmux3 (>= 1.3.2), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.2.0)
 Filename: dists/stable/main/binary-arm64/./GompeiVision-1.0-Linux.deb
-Size: 36453476
-MD5sum: 5397ae78480c001bba02f67a13109bca
-SHA1: 7baa670528fb304e18062fdaf68f03af4bb5d4d4
-SHA256: 25b1c4df034a02f8cb6632bccaa41cac90192e0e15c7b28d57e127e5a8ebbd75
+Size: 36453924
+MD5sum: 9a81dce8a262fd70c3b9d97089318890
+SHA1: b9e67bb34bc0e82ba6b7e4c4cd6c6e82b924cd27
+SHA256: ba52b888e692facfecea39ad25c496db4376ec4e684220634117ca3a68c57a10
 Section: devel
 Priority: optional
 Description: GompeiVision - An FRC vision solution
