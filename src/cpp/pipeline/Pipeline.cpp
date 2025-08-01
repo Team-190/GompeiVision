@@ -43,8 +43,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     return;
   }
 
-  m_stream_width = m_camera->getWidth();
-  m_stream_height = m_camera->getHeight();
+  m_stream_width = m_config_interface->getWidth();
+  m_stream_height = m_config_interface->getHeight();
 
   // The server and stream are only initialized and run in setup mode.
   if (m_config_interface->isSetupMode()) {
