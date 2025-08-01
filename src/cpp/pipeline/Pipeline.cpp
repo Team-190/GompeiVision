@@ -66,6 +66,9 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   m_camera->setBrightness(m_config_interface->getGain());
   // Initialize the NetworkTables interface
   m_output_publisher = std::make_unique<NTOutputPublisher>();
+
+  std::cout << "[" << m_role
+            << "] Initialized pipeline with ID: " << hardware_id << std::endl;
 }
 
 Pipeline::~Pipeline() {
