@@ -136,15 +136,6 @@ bool Camera::getBrightness(int& value) const {
 // Checks if the camera is open and ready for use
 bool Camera::isConnected() const { return m_capture.isOpened(); }
 
-// Gets the hardware ID of the camera
-const std::string& Camera::getHardwareID() const { return m_hardwareID; }
-
-// Gets the frame width of the stream
-int Camera::getWidth() const { return m_width; }
-
-// Gets the frame height of the stream
-int Camera::getHeight() const { return m_height; }
-
 // Helper for logging informational messages
 void Camera::logInfo(const std::string& message) const {
   std::cout << "[INFO] Camera (" << m_hardwareID << "): " << message
