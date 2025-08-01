@@ -46,8 +46,8 @@ Camera::Camera(const int deviceIndex, const std::string& hardwareID,
   }
 
   // Log the actual format the camera has settled on.
-  int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
-  if (fourcc != 0) {
+  if (const int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
+      fourcc != 0) {
     // Decode the FourCC integer into a human-readable string.
     std::string formatStr;
     formatStr += (fourcc & 0XFF);
@@ -96,7 +96,7 @@ bool Camera::getFrame(
 }
 
 // Sets the camera's exposure property
-bool Camera::setExposure(int value) {
+bool Camera::setExposure(const int value) {
   if (!isConnected()) return false;
   logInfo("Setting exposure to " + std::to_string(value));
   // cv::VideoCapture::set returns true on success
@@ -108,28 +108,13 @@ bool Camera::setExposure(int value) {
 }
 
 // Sets the camera's brightness property
-bool Camera::setBrightness(int value) {
+bool Camera::setBrightness(const int value) {
   if (!isConnected()) return false;
   logInfo("Setting brightness to " + std::to_string(value));
   if (!m_capture.set(cv::CAP_PROP_BRIGHTNESS, static_cast<double>(value))) {
     logError("Failed to set brightness.");
     return false;
   }
-  return true;
-}
-
-// Gets the camera's current exposure value
-bool Camera::getExposure(int& value) const {
-  if (!isConnected()) return false;
-  value = static_cast<int>(m_capture.get(cv::CAP_PROP_EXPOSURE));
-  return true;  // .get() doesn't have a failure return, so we assume success if
-                // connected.
-}
-
-// Gets the camera's current brightness value
-bool Camera::getBrightness(int& value) const {
-  if (!isConnected()) return false;
-  value = static_cast<int>(m_capture.get(cv::CAP_PROP_BRIGHTNESS));
   return true;
 }
 

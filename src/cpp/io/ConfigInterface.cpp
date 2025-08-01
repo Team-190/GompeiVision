@@ -43,7 +43,7 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
         m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Subscribe({});
     m_distCoeffsSub =
         m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Subscribe({});
-    m_exposureSub = m_table->GetIntegerTopic(nt_keys::kExposure).Subscribe(0);
+    m_exposureSub = m_table->GetIntegerTopic(nt_keys::kExposure).Subscribe(50);
     m_gainSub = m_table->GetIntegerTopic(nt_keys::kGain).Subscribe(0);
     m_widthSub = m_table->GetIntegerTopic(nt_keys::kWidth).Subscribe(1600);
     m_heightSub = m_table->GetIntegerTopic(nt_keys::kHeight).Subscribe(1304);

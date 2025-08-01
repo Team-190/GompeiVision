@@ -59,42 +59,10 @@ class Camera {
   bool setBrightness(int value);
 
   /**
-   * @brief Gets the current exposure value from the camera.
-   * @param[out] value A reference to store the retrieved value.
-   * @return True on success, false on failure.
-   */
-  bool getExposure(int& value) const;
-
-  /**
-   * @brief Gets the current brightness value from the camera.
-   * @param[out] value A reference to store the retrieved value.
-   * @return True on success, false on failure.
-   */
-  bool getBrightness(int& value) const;
-
-  /**
    * @brief Checks if the camera is currently connected and streaming.
    * @return True if the camera stream is open, false otherwise.
    */
   bool isConnected() const;
-
-  /**
-   * @brief Gets the hardware ID this camera object was initialized with.
-   * @return A constant reference to the hardware ID string.
-   */
-  const std::string& getHardwareID() const;
-
-  /**
-   * @brief Gets the width of the camera stream.
-   * @return The width of the camera stream in pixels.
-   */
-  int getWidth() const;
-
-  /**
-   * @brief Gets the height of the camera stream.
-   * @return The height of the camera stream in pixels.
-   */
-  int getHeight() const;
 
  private:
   /**

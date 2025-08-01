@@ -30,7 +30,9 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
 
   m_role = m_config_interface->getRole();
 
-  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, 1600, 1304);
+  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id,
+                                      m_config_interface->getWidth(),
+                                      m_config_interface->getHeight());
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -48,7 +50,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     m_mjpeg_server =
         std::make_unique<cs::MjpegServer>(m_role + "_stream", stream_port);
     m_cv_source = std::make_unique<cs::CvSource>(
-        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, 1600, 1304, 60);
+        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
+        m_stream_height, 60);
 
     CS_Status status = 0;
     cs::SetSinkSource(m_mjpeg_server->GetHandle(),
@@ -59,12 +62,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
   }
 
   m_field = PipelineHelper::load_field_layout("2025-reefscape-andymark.json");
-  if (auto res = m_camera->setExposure(50)) {
-    std::cout << "[" << m_role << "] Exposure set to 50." << std::endl;
-  } else {
-    std::cout << "[" << m_role << "] Failed to set exposure" << std::endl;
-  }
-
+  m_camera->setExposure(m_config_interface->getExposure());
+  m_camera->setBrightness(m_config_interface->getGain());
   // Initialize the NetworkTables interface
   m_output_publisher = std::make_unique<NTOutputPublisher>();
 }
@@ -184,9 +183,9 @@ void Pipeline::processing_loop() {
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    std::cout << "[" << m_role << "] FPS: " << smoothed_fps
-              << " | Pose Results Queued: " << m_estimated_poses.size()
-              << std::endl;
+    // std::cout << "[" << m_role << "] FPS: " << smoothed_fps
+    //           << " | Pose Results Queued: " << m_estimated_poses.size()
+    //           << std::endl;
 
     // Only run pose estimation if we have detections AND calibration data.
     if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
