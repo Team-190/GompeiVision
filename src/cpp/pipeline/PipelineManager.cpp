@@ -140,8 +140,7 @@ void PipelineManager::startAll() {
 
       // Prepare arguments for execv. The list must be null-terminated.
       const char* args[] = {worker_name.c_str(),      dev_idx_str.c_str(),
-                            hardware_id.c_str(),      width_str.c_str(),
-                            height_str.c_str(),       stream_port_str.c_str(),
+                            hardware_id.c_str(),      stream_port_str.c_str(),
                             control_port_str.c_str(), nullptr};
 
       // Replace the child process image with the worker executable.
