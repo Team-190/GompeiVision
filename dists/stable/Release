@@ -6,18 +6,18 @@ Codename: stable
 Architectures: amd64 arm64
 Components: main
 Description: GompeiVision APT repository hosted on GitHub Pages
-Date: Sat, 02 Aug 2025 07:12:35 +0000
+Date: Sat, 02 Aug 2025 07:17:01 +0000
 MD5Sum:
- 68592755d7570779c238440268206c96         53989370 main/binary-amd64/GompeiVision-1.0-Linux.deb
- b3d07fd3f33f474d3d35098b2b9c4555              588 main/binary-amd64/Packages.gz
- f443b111d2206561bc473004fae01e68             1006 main/binary-amd64/Packages
- cf3a5f70a5d2d84cf8fb4a666de93dea         36450604 main/binary-arm64/GompeiVision-1.0-Linux.deb
- 9a4e1d7fb61b4c7fdbd6612d396ebca7              599 main/binary-arm64/Packages.gz
- a1860b4376c6d688640a11b1813663ec             1037 main/binary-arm64/Packages
+ c7a7b2cc2e2c047a7594cf3f2c5538ee         53989262 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ 86e0d51bb2639c6a745bf98bea6a5420              587 main/binary-amd64/Packages.gz
+ a9e4700438efcd4d2bf00a7e56671efb             1006 main/binary-amd64/Packages
+ 778618cc9f71efba0d6c3efb0c789a88         36450384 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ 65e317c49b3058f8478fba8baf405709              603 main/binary-arm64/Packages.gz
+ b07582e099fbfba7785616bce6d18cbc             1037 main/binary-arm64/Packages
 SHA256:
- 6661e15f649b0142d3b0f398d1d8989cae4299bc3cb13779776c0f1568729fc3         53989370 main/binary-amd64/GompeiVision-1.0-Linux.deb
- d289a83db794fc1335dcb1ed522d6defa14e541663a8cf1c9b8590994cf903b3              588 main/binary-amd64/Packages.gz
- 5ff7b86786789e97d299dea9c05809ede3e5a1f67fdaf05baceb0f018ad9725b             1006 main/binary-amd64/Packages
- 3101873a90372748d2010f6437c45e97b4500f66e595da2930f4f183c9e41e82         36450604 main/binary-arm64/GompeiVision-1.0-Linux.deb
- 813e0aed651d738f79d12d179094e4ec4780cdc22e31acf2bdd148c815be03a3              599 main/binary-arm64/Packages.gz
- 14721b2fee5415fe1d075dfab3df59817c777d928785aa8b89c3d2ff4fbf2517             1037 main/binary-arm64/Packages
+ eb0731b9fbe3226b3edf262855c7bb975aeb8d28c073f898f21fdee27054693e         53989262 main/binary-amd64/GompeiVision-1.0-Linux.deb
+ 12f62dd0d55ebfe204043f74017e9965d88e8e802502d438c23f14cca3d36ec0              587 main/binary-amd64/Packages.gz
+ 49ee97af4ed378d362d63c970ff8d679cc4ae8603de280a826fb0a3ced376778             1006 main/binary-amd64/Packages
+ b298460737820e9ccbe608aace5591d8219c8923ff250443c36c06182ce1d07a         36450384 main/binary-arm64/GompeiVision-1.0-Linux.deb
+ 86d1e5e45d9afd1defe6368f0f1eb29cb92cb60345d4e7774da4fa1cede0aa7e              603 main/binary-arm64/Packages.gz
+ 207db2383746568e344c4eafb0c84e85402526140572acce499e49f60ae9d5c0             1037 main/binary-arm64/Packages
