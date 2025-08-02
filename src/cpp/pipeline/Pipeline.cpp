@@ -24,13 +24,15 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     : m_hardware_id(hardware_id),
       m_control_port(control_port),
       m_stream_port(stream_port) {
+  m_role = "front_cam";
+
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
 
-  m_role = m_config_interface->getRole();
-
-  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, 1600, 1304);
+  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id,
+                                      m_config_interface->getWidth(),
+                                      m_config_interface->getHeight());
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -38,8 +40,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     return;
   }
 
-  m_stream_width = 1600;
-  m_stream_height = 1304;
+  m_stream_width = m_config_interface->getWidth();
+  m_stream_height = m_config_interface->getHeight();
 
   // The server and stream are only initialized and run in setup mode.
   if (m_config_interface->isSetupMode()) {
