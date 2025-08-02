@@ -21,9 +21,9 @@ void signal_handler(const int signum) {
 }
 
 int main(const int argc, char* argv[]) {
-  if (argc < 7) {
+  if (argc < 4) {
     std::cerr << "Usage: " << argv[0]
-              << " <device_index> <hardware_id> <width> <height> <stream_port> "
+              << " <device_index> <hardware_id> <stream_port> "
                  "<control_port>"
               << std::endl;
     return 1;
