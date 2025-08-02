@@ -38,7 +38,7 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
     // a sensible default.
     m_setupModeSub =
         m_table->GetBooleanTopic(nt_keys::kSetupMode).Subscribe(false);
-    m_roleSub = m_table->GetStringTopic(nt_keys::kRole).Subscribe("");
+    m_roleSub = m_table->GetStringTopic(nt_keys::kRole).Subscribe("front_cam");
     m_cameraMatrixSub =
         m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Subscribe({});
     m_distCoeffsSub =
