@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 
+#include "networktables/NetworkTableInstance.h"
 #include "pipeline/Pipeline.h"
 
 // Global pointer to the pipeline to be accessible by the signal handler.
@@ -21,7 +22,7 @@ void signal_handler(const int signum) {
 }
 
 int main(const int argc, char* argv[]) {
-  if (argc < 4) {
+  if (argc < 5) {
     std::cerr << "Usage: " << argv[0]
               << " <device_index> <hardware_id> <stream_port> "
                  "<control_port>"
@@ -34,6 +35,11 @@ int main(const int argc, char* argv[]) {
     const std::string hardware_id = argv[2];
     const int stream_port = std::stoi(argv[3]);
     const int control_port = std::stoi(argv[4]);
+
+    // Each worker process must initialize its own NT client.
+    nt::NetworkTableInstance nt_inst = nt::NetworkTableInstance::GetDefault();
+    nt_inst.StartClient4("GompeiVision-" + hardware_id);
+    nt_inst.SetServerTeam(190);
 
     // Register signal handlers for graceful shutdown.
     signal(SIGTERM, signal_handler);
@@ -52,7 +58,7 @@ int main(const int argc, char* argv[]) {
     // The pipeline runs in its own threads. The main thread waits until the
     // pipeline is stopped (e.g., by the signal handler).
     while (g_pipeline->isRunning()) {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      g_pipeline->during();
     }
 
     std::cout << "[Worker] Pipeline for " << hardware_id << " has shut down."
