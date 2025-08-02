@@ -24,11 +24,11 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     : m_hardware_id(hardware_id),
       m_control_port(control_port),
       m_stream_port(stream_port) {
-  m_role = "front_cam";
-
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
+
+  m_role = m_config_interface->getRole();
 
   m_camera = std::make_unique<Camera>(deviceIndex, hardware_id,
                                       m_config_interface->getWidth(),
