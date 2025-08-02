@@ -124,6 +124,8 @@ class ConfigInterface {
 
   // --- NetworkTables Handles ---
   std::shared_ptr<nt::NetworkTable> m_table;
+  std::shared_ptr<nt::NetworkTable> m_configTable;
+  std::shared_ptr<nt::NetworkTable> m_outputTable;
 
   // Subscribers for each configuration parameter
   nt::BooleanSubscriber m_setupModeSub;

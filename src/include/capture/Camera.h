@@ -59,6 +59,14 @@ class Camera {
   bool setBrightness(int value);
 
   /**
+   * @brief Sets the resolution for the camera stream.
+   * @param width The desired frame width.
+   * @param height The desired frame height.
+   * @return True on success, false on failure.
+   */
+  bool setResolution(int width, int height);
+
+  /**
    * @brief Checks if the camera is currently connected and streaming.
    * @return True if the camera stream is open, false otherwise.
    */

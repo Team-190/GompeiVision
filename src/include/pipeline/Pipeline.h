@@ -31,6 +31,7 @@ class Pipeline {
   ~Pipeline();
 
   void start();
+  void during();
   void stop();
 
   bool isRunning() const;
@@ -50,8 +51,11 @@ class Pipeline {
   int m_stream_port;
   std::mutex m_role_mutex;
 
-  int m_stream_width = 0;
-  int m_stream_height = 0;
+  // Cached settings to prevent unnecessary reloads
+  int m_active_width = 0;
+  int m_active_height = 0;
+  int m_active_exposure = 0;
+  int m_active_gain = 0;
 
   std::unique_ptr<Camera> m_camera;
 
@@ -64,7 +68,7 @@ class Pipeline {
   std::atomic<bool> m_capture_next_frame_for_calib{false};
   std::mutex m_calibration_mutex;
 
-  // --- calibration worker ---
+  // --- calibration worker -- -
   std::thread m_calibration_worker_thread;
   std::atomic<bool> m_is_calibrating{false};
   std::string m_calibration_status_message;

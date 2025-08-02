@@ -4,18 +4,9 @@
 #include <networktables/IntegerTopic.h>
 
 #include <string>
+#include <string_view>
 
 #include "../util/QueuedFiducialData.h"
-
-namespace config {
-// NOTE: This is a placeholder for your actual ConfigStore implementation.
-// It is assumed to have a structure that can provide a 'device_id'.
-struct ConfigStore {
-  struct LocalConfig {
-    std::string device_id;
-  } local_config;
-};
-}  // namespace config
 
 /**
  * @class OutputPublisher
@@ -27,11 +18,9 @@ class OutputPublisher {
 
   /**
    * @brief Sends a complete AprilTag result packet.
-   * @param config_store The system configuration.
    * @param result The AprilTag result data for a single frame.
    */
-  virtual void SendAprilTagResult(const config::ConfigStore& config_store,
-                                  const AprilTagResult& result) = 0;
+  virtual void SendAprilTagResult(const AprilTagResult& result) = 0;
 };
 
 /**
@@ -40,15 +29,10 @@ class OutputPublisher {
  */
 class NTOutputPublisher final : public OutputPublisher {
  public:
-  void SendAprilTagResult(const config::ConfigStore& config_store,
-                          const AprilTagResult& result) override;
+  explicit NTOutputPublisher(std::string_view hardware_id);
+  void SendAprilTagResult(const AprilTagResult& result) override;
 
  private:
-  void CheckInit(const config::ConfigStore& config_store);
-
-  bool init_complete_ = false;
   nt::DoubleArrayPublisher observations_pub_;
   nt::IntegerPublisher apriltags_fps_pub_;
-  // nt::IntegerPublisher objdetect_fps_pub_;
-  // nt::DoubleArrayPublisher objdetect_observations_pub_;
 };

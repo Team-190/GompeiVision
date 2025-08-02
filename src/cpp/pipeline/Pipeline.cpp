@@ -2,7 +2,6 @@
 
 #include <cscore/cscore_cv.h>
 #include <httplib.h>
-#include <libudev.h>
 
 #include <chrono>
 #include <iostream>
@@ -11,6 +10,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <string>
+#include <thread>
 
 #include "capture/Camera.h"
 #include "estimator/CameraPoseEstimator.h"
@@ -24,13 +24,22 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     : m_hardware_id(hardware_id),
       m_control_port(control_port),
       m_stream_port(stream_port) {
-  std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
-
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
+
+  m_config_interface->update();
 
   m_role = m_config_interface->getRole();
 
-  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, 1600, 1304);
+  // Initialize active settings from config
+  m_active_width = m_config_interface->getWidth();
+  m_active_height = m_config_interface->getHeight();
+  m_active_exposure = m_config_interface->getExposure();
+  m_active_gain = m_config_interface->getGain();
+
+  std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
+
+  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, m_active_width,
+                                      m_active_height);
 
   if (!m_camera || !m_camera->isConnected()) {
     std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
@@ -38,32 +47,11 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     return;
   }
 
-  m_stream_width = 1600;
-  m_stream_height = 1304;
-
-  // The server and stream are only initialized and run in setup mode.
-  if (m_config_interface->isSetupMode()) {
-    std::cout << "[" << m_role << "] Setup mode enabled. Initializing servers."
-              << std::endl;
-    m_mjpeg_server =
-        std::make_unique<cs::MjpegServer>(m_role + "_stream", stream_port);
-    m_cv_source = std::make_unique<cs::CvSource>(
-        m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_stream_width,
-        m_stream_height, 60);
-
-    CS_Status status = 0;
-    cs::SetSinkSource(m_mjpeg_server->GetHandle(),
-                      m_cv_source.get()->GetHandle(), &status);
-
-    std::cout << "[" << m_role << "] MJPEG stream available at port "
-              << m_stream_port << std::endl;
-  }
-
   m_field = PipelineHelper::load_field_layout("2025-reefscape-andymark.json");
-  m_camera->setExposure(50);
-  m_camera->setBrightness(0);
-  // Initialize the NetworkTables interface
-  m_output_publisher = std::make_unique<NTOutputPublisher>();
+  m_camera->setExposure(m_active_exposure);
+  m_camera->setBrightness(m_active_gain);
+
+  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id);
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
@@ -79,8 +67,103 @@ void Pipeline::start() {
   m_is_running = true;
   m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
+}
+
+void Pipeline::during() {
+  if (!m_is_running) return;
+
+  m_config_interface->update();
+
   if (m_config_interface->isSetupMode()) {
-    m_server_thread = std::thread(&Pipeline::server_loop, this);
+    // --- We are in Setup Mode ---
+
+    const int new_width = m_config_interface->getWidth();
+    const int new_height = m_config_interface->getHeight();
+    const int new_exposure = m_config_interface->getExposure();
+    const int new_gain = m_config_interface->getGain();
+
+    const bool resolution_changed =
+        (new_width != m_active_width || new_height != m_active_height);
+    const bool exposure_changed = (new_exposure != m_active_exposure);
+    const bool gain_changed = (new_gain != m_active_gain);
+
+    // If resolution changed, we must restart the server.
+    if (resolution_changed) {
+      std::cout << "[" << m_role << "] Resolution changed to " << new_width
+                << "x" << new_height << ". Restarting stream." << std::endl;
+
+      // 1. Stop the server if it's running
+      if (m_server.is_running()) {
+        m_server.stop();
+        m_mjpeg_server.reset();
+        m_cv_source.reset();
+      }
+
+      // 2. Update active settings
+      m_active_width = new_width;
+      m_active_height = new_height;
+
+      // 3. Apply to camera
+      if (m_camera) {
+        m_camera->setResolution(m_active_width, m_active_height);
+      }
+      // The server will be started (or restarted) by the logic below.
+    }
+
+    // Apply other settings if they have changed.
+    if (exposure_changed) {
+      m_active_exposure = new_exposure;
+      if (m_camera) {
+        m_camera->setExposure(m_active_exposure);
+      }
+      std::cout << "[" << m_role << "] Exposure updated to "
+                << m_active_exposure << std::endl;
+    }
+    if (gain_changed) {
+      m_active_gain = new_gain;
+      if (m_camera) {
+        m_camera->setBrightness(m_active_gain);
+      }
+      std::cout << "[" << m_role << "] Gain updated to " << m_active_gain
+                << std::endl;
+    }
+
+    // Ensure the server is running if we are in setup mode.
+    if (!m_server.is_running()) {
+      std::cout << "[" << m_role
+                << "] Setup mode enabled. Initializing servers." << std::endl;
+
+      m_mjpeg_server =
+          std::make_unique<cs::MjpegServer>(m_role + "_stream", m_stream_port);
+      m_cv_source = std::make_unique<cs::CvSource>(
+          m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_active_width,
+          m_active_height, 60);
+
+      CS_Status status = 0;
+      cs::SetSinkSource(m_mjpeg_server->GetHandle(),
+                        m_cv_source.get()->GetHandle(), &status);
+
+      std::cout << "[" << m_role << "] MJPEG stream available at port "
+                << m_stream_port << std::endl;
+
+      std::thread(&Pipeline::server_loop, this).detach();
+    }
+
+  } else {
+    // --- We are NOT in Setup Mode ---
+    if (m_server.is_running()) {
+      std::cout << "[" << m_role << "] Setup mode disabled. Stopping servers."
+                << std::endl;
+      m_server.stop();
+      m_mjpeg_server.reset();
+      m_cv_source.reset();
+    }
+  }
+
+  // Special case for calibration
+  if (m_config_interface->isSetupMode() && m_is_calibrating) {
+    m_is_calibrating = false;
+    m_server.stop();
   }
 }
 
@@ -88,19 +171,13 @@ void Pipeline::stop() {
   if (!m_is_running) return;
   m_is_running = false;
 
-  // Unblock any threads that might be waiting on blocking operations like
-  // queues or the server's listen call. This prevents deadlocks during
-  // shutdown.
   m_estimated_poses.shutdown();
-  if (m_config_interface->isSetupMode()) {
+  if (m_server.is_running()) {
     m_server.stop();
   }
 
-  // Now that all threads have been signaled to stop and unblocked, join them.
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
-  // The server thread is only created in setup mode
-  if (m_server_thread.joinable()) m_server_thread.join();
 
   if (m_calibration_worker_thread.joinable())
     m_calibration_worker_thread.join();
@@ -110,7 +187,6 @@ void Pipeline::stop() {
 bool Pipeline::isRunning() const { return m_is_running; }
 
 void Pipeline::processing_loop() {
-  // --- 1. Initialization ---
   cv::Mat cameraMatrix;
   cv::Mat distCoeffs;
   bool intrinsics_loaded = false;
@@ -118,7 +194,6 @@ void Pipeline::processing_loop() {
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
 
-  // Load camera intrinsics from the calibration file.
   intrinsics_loaded =
       PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix, distCoeffs);
   if (!intrinsics_loaded) {
@@ -128,27 +203,18 @@ void Pipeline::processing_loop() {
               << std::endl;
   }
 
-  // This should return a map of tag IDs to their 3D poses (cv::Pose3d).
-  // For now, we'll use an empty map.
-
   QueuedFrame frame;
   std::chrono::time_point<std::chrono::steady_clock> timestamp;
 
-  // --- 2. Main Processing Loop ---
   while (m_is_running) {
     constexpr double alpha = 0.05;
-    // For periodic logging, to avoid spamming cout
-    auto now_for_logging = std::chrono::steady_clock::now();
-    static auto last_log_time = now_for_logging;
 
     if (m_is_calibrating.load()) continue;
 
-    // --- CAPTURE STAGE ---
     if (!m_camera || !m_camera->getFrame(frame.frame, timestamp)) {
-      continue;  // No frame, wait for next
+      continue;
     }
 
-    // Handle calibration frame processing and drawing
     {
       std::lock_guard<std::mutex> lock(m_calibration_mutex);
       if (m_calibration_session) {
@@ -163,20 +229,14 @@ void Pipeline::processing_loop() {
       }
     }
 
-    // Push frame to MJPEG stream if in setup mode
     if (m_config_interface->isSetupMode() && m_cv_source) {
       m_cv_source->PutFrame(frame.frame);
     }
 
-    // --- DETECTION STAGE ---
     FiducialImageObservation frame_observation;
     frame_observation.timestamp = timestamp;
-    // The detector needs a non-const frame if it draws on it,
-    // but a const frame if it doesn't. We clone to be safe and
-    // to decouple from the original frame buffer if needed.
-    m_AprilTagDetector.detect(frame, frame_observation);
 
-    // std::cout << frame_observation.tag_ids.size() << std::endl;
+    m_AprilTagDetector.detect(frame, frame_observation);
 
     auto current_time = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed_seconds = current_time - last_time;
@@ -184,39 +244,23 @@ void Pipeline::processing_loop() {
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    // std::cout << "[" << m_role << "] FPS: " << smoothed_fps
-    //           << " | Pose Results Queued: " << m_estimated_poses.size()
-    //           << std::endl;
-
-    // Only run pose estimation if we have detections AND calibration data.
     if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
-      // --- POSE ESTIMATION STAGE ---
-      // This structure will hold all results for the current frame.
       AprilTagResult result;
       result.timestamp = frame_observation.timestamp;
       result.camera_role = m_role;
-      constexpr double tag_size_m = 0.1651;  // 6.5 inches
+      constexpr double tag_size_m = 0.1651;
 
       SingleTagPoseEstimator::estimatePose(
           frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
       CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
                                         distCoeffs, tag_size_m, m_field);
-      //
-      // std::cout << "X: " << result.multi_tag_pose.pose_0.X().value()
-      //           << std::endl;
-      // std::cout << "Y: " << result.multi_tag_pose.pose_0.Y().value()
-      //           << std::endl;
-      // std::cout << "Z: " << result.multi_tag_pose.pose_0.Z().value()
-      //           << std::endl;
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
 
-      result.fps = smoothed_fps;  // Store the smoothed FPS in your result
+      result.fps = smoothed_fps;
       m_estimated_poses.push(result);
-
-      // std::cout << "data sent" << std::endl;
     }
   }
 }
@@ -229,16 +273,8 @@ void Pipeline::networktables_loop() {
       continue;
     }
 
-    // std::cout << result.multi_tag_pose.has_value() << std::endl;
-    // std::cout << result.multi_tag_pose->pose_0.X().value() << std::endl;
-
     if (m_output_publisher) {
-      config::ConfigStore config;
-      {
-        std::lock_guard<std::mutex> lock(m_role_mutex);
-        config.local_config.device_id = m_role;
-      }
-      m_output_publisher->SendAprilTagResult(config, result);
+      m_output_publisher->SendAprilTagResult(result);
     }
   }
 }
@@ -279,8 +315,8 @@ void Pipeline::server_loop() {
         <div class="stream-container">
             <h2>Live Stream</h2>
             <img id="stream" class="stream" width=")raw" +
-      std::to_string(m_stream_width) + R"raw(" height=")raw" +
-      std::to_string(m_stream_height) +
+      std::to_string(m_active_width) + R"raw(" height=")raw" +
+      std::to_string(m_active_height) +
       R"raw(" alt="Live MJPEG Stream">
         </div>
         <div class="controls">
@@ -365,15 +401,11 @@ void Pipeline::server_loop() {
 </html>
 )raw";
 
-  // Serve the main HTML UI
   m_server.Get(
       "/", [html_content](const httplib::Request& req, httplib::Response& res) {
         res.set_content(html_content, "text/html");
       });
 
-  // Removed: /role/set endpoint
-
-  // Calibration control endpoints
   m_server.Post("/calibration/start", [this](const httplib::Request& req,
                                              httplib::Response& res) {
     try {
@@ -391,7 +423,7 @@ void Pipeline::server_loop() {
       res.set_content("OK: Calibration session started with new parameters.",
                       "text/plain");
     } catch (const nlohmann::json::exception& e) {
-      res.status = 400;  // Bad Request
+      res.status = 400;
       res.set_content("ERROR: Invalid JSON format or missing parameters. " +
                           std::string(e.what()),
                       "text/plain");
@@ -424,7 +456,7 @@ void Pipeline::server_loop() {
   m_server.Post("/calibration/finish", [this](const httplib::Request& req,
                                               httplib::Response& res) {
     if (m_is_calibrating) {
-      res.status = 409;  // Conflict
+      res.status = 409;
       res.set_content("ERROR: Calibration is already in progress.",
                       "text/plain");
       return;

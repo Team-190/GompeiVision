@@ -19,46 +19,53 @@ constexpr auto kHeight = "height";
 }  // namespace nt_keys
 
 ConfigInterface::ConfigInterface(const std::string& hardwareID) {
-  for (const auto subtable : nt::NetworkTableInstance::GetDefault()
-                                 .GetTable("configs")
-                                 ->GetSubTables()) {
-    const auto table =
-        nt::NetworkTableInstance::GetDefault().GetTable("configs")->GetSubTable(
-            subtable);
-    if (table->GetEntry(nt_keys::kHardwareID).GetString("invalid") ==
-        hardwareID) {
-      m_table = table;
-    }
-  }
+  m_table =
+      nt::NetworkTableInstance::GetDefault().GetTable("/cameras/" + hardwareID);
+  m_configTable = nt::NetworkTableInstance::GetDefault().GetTable(
+      "/cameras/" + hardwareID + "/config");
+  std::cout << "the topics or whatever: " << m_configTable->GetTopics().data()
+            << std::endl;
+  m_outputTable = nt::NetworkTableInstance::GetDefault().GetTable(
+      "/cameras/" + hardwareID + "/output");
 
   if (m_table) {
     // --- Initialize Subscribers ---
     // Subscribe to each topic with a default value. This ensures
     // that if the topic doesn't exist on the server yet, we have
     // a sensible default.
-    m_setupModeSub =
-        m_table->GetBooleanTopic(nt_keys::kSetupMode).Subscribe(false);
-    m_roleSub = m_table->GetStringTopic(nt_keys::kRole).Subscribe("");
-    m_cameraMatrixSub =
-        m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Subscribe({});
-    m_distCoeffsSub =
-        m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Subscribe({});
-    m_exposureSub = m_table->GetIntegerTopic(nt_keys::kExposure).Subscribe(50);
-    m_gainSub = m_table->GetIntegerTopic(nt_keys::kGain).Subscribe(0);
-    m_widthSub = m_table->GetIntegerTopic(nt_keys::kWidth).Subscribe(1600);
-    m_heightSub = m_table->GetIntegerTopic(nt_keys::kHeight).Subscribe(1304);
+    nt::PubSubOptions options;
+    options.periodic = 0.01;
+    options.keepDuplicates = true;
 
+    m_setupModeSub = m_configTable->GetBooleanTopic(nt_keys::kSetupMode)
+                         .Subscribe(false, options);
+    m_roleSub =
+        m_configTable->GetStringTopic(nt_keys::kRole).Subscribe("", options);
+    m_cameraMatrixSub =
+        m_configTable->GetDoubleArrayTopic(nt_keys::kCameraMatrix)
+            .Subscribe({}, options);
+    m_distCoeffsSub = m_configTable->GetDoubleArrayTopic(nt_keys::kDistCoeffs)
+                          .Subscribe({}, options);
+    m_exposureSub = m_configTable->GetIntegerTopic(nt_keys::kExposure)
+                        .Subscribe(0, options);
+    m_gainSub =
+        m_configTable->GetIntegerTopic(nt_keys::kGain).Subscribe(0, options);
+    m_widthSub =
+        m_configTable->GetIntegerTopic(nt_keys::kWidth).Subscribe(0, options);
+    m_heightSub =
+        m_configTable->GetIntegerTopic(nt_keys::kHeight).Subscribe(0, options);
     // --- Initialize Publishers ---
     // Get publishers for each topic. These will be used to send data back
     // when in setup mode.
     m_cameraMatrixPub =
-        m_table->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Publish();
+        m_outputTable->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Publish();
     m_distCoeffsPub =
-        m_table->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Publish();
-    m_exposurePub = m_table->GetIntegerTopic(nt_keys::kExposure).Publish();
-    m_gainPub = m_table->GetIntegerTopic(nt_keys::kGain).Publish();
-    m_widthPub = m_table->GetIntegerTopic(nt_keys::kWidth).Publish();
-    m_heightPub = m_table->GetIntegerTopic(nt_keys::kHeight).Publish();
+        m_outputTable->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Publish();
+    m_exposurePub =
+        m_outputTable->GetIntegerTopic(nt_keys::kExposure).Publish();
+    m_gainPub = m_outputTable->GetIntegerTopic(nt_keys::kGain).Publish();
+    m_widthPub = m_outputTable->GetIntegerTopic(nt_keys::kWidth).Publish();
+    m_heightPub = m_outputTable->GetIntegerTopic(nt_keys::kHeight).Publish();
 
     // Perform an initial update to populate the cache with values from
     // NetworkTables if they exist.
@@ -77,50 +84,32 @@ void ConfigInterface::update() {
   // Process the queue for each subscribed topic. This pulls all changes since
   // the last call to update().
 
-  for (const auto& value : m_setupModeSub.ReadQueue()) {
-    setSetupMode(value.value);
-  }
+  std::cout << "Setup mode was " << m_setupMode;
+  m_setupMode = m_setupModeSub.Get();
+  std::cout << " and is now " << m_setupMode << std::endl;
 
-  for (const auto& value : m_exposureSub.ReadQueue()) {
-    m_exposure = value.value;
-  }
+  std::cout << "Role was " << m_role;
+  m_role = m_roleSub.Get();
+  std::cout << " and is now " << m_role << std::endl;
 
-  for (const auto& value : m_gainSub.ReadQueue()) {
-    m_gain = value.value;
-  }
+  std::cout << "Exposure was " << m_exposure;
+  m_exposure = m_exposureSub.Get();
+  std::cout << " and is now " << m_exposure << std::endl;
 
-  for (const auto& value : m_widthSub.ReadQueue()) {
-    m_width = value.value;
-  }
+  std::cout << "Gain was " << m_gain;
+  m_gain = m_gainSub.Get();
+  std::cout << " and is now " << m_gain << std::endl;
 
-  for (const auto& value : m_heightSub.ReadQueue()) {
-    m_height = value.value;
-  }
+  std::cout << "Width was " << m_width;
+  m_width = m_widthSub.Get();
+  std::cout << " and is now " << m_width << std::endl;
 
-  for (const auto& value : m_cameraMatrixSub.ReadQueue()) {
-    if (value.value.size() == 9) {
-      // The incoming data is a std::vector<double>. We create a 3x3 CV_64F
-      // Mat from it. .clone() is crucial to copy the data, as the `value`
-      // object is temporary.
-      m_cameraMatrix =
-          cv::Mat(3, 3, CV_64F, const_cast<double*>(value.value.data()))
-              .clone();
-    } else if (!value.value.empty()) {
-      logError(
-          "Received camera_matrix with incorrect size. Expected 9 elements, "
-          "got " +
-          std::to_string(value.value.size()));
-    }
-  }
+  std::cout << "Height was " << m_height;
+  m_height = m_heightSub.Get();
+  std::cout << " and is now " << m_height << std::endl;
 
-  for (const auto& value : m_distCoeffsSub.ReadQueue()) {
-    if (!value.value.empty()) {
-      // Create a 1xN CV_64F Mat from the incoming vector.
-      m_distortionCoeffs = cv::Mat(1, value.value.size(), CV_64F,
-                                   const_cast<double*>(value.value.data()))
-                               .clone();
-    }
-  }
+  // m_cameraMatrix = cv::Mat(3, 3, CV_64F, m_cameraMatrixSub.Get().data());
+  // m_distortionCoeffs = cv::Mat(1, 5, CV_64F, m_distCoeffsSub.Get().data());
 }
 
 // --- State Getters ---
