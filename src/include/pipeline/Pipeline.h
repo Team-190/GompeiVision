@@ -6,6 +6,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <opencv2/core.hpp>
 #include <string>
 #include <thread>
 
@@ -56,6 +57,9 @@ class Pipeline {
   int m_active_height = 0;
   int m_active_exposure = 0;
   int m_active_gain = 0;
+  cv::Mat m_camera_matrix;
+  cv::Mat m_dist_coeffs;
+  bool m_intrinsics_loaded = false;
 
   std::unique_ptr<Camera> m_camera;
 

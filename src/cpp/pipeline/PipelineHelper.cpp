@@ -1,6 +1,5 @@
 #include "pipeline/PipelineHelper.h"
 
-#include <fields/fields.h>
 #include <frc/geometry/Pose3d.h>
 #include <frc/geometry/Quaternion.h>
 #include <frc/geometry/Rotation3d.h>
@@ -15,6 +14,8 @@
 #include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
 #include <vector>
+
+#include "io/ConfigInterface.h"
 
 PipelineHelper::PipelineHelper() {}
 PipelineHelper::~PipelineHelper() {}
@@ -79,35 +80,19 @@ void PipelineHelper::async_finish_calibration(
   isCalibrating = false;
 }
 
-bool PipelineHelper::load_camera_intrinsics(const std::string& role,
-                                            cv::Mat& cameraMatrix,
-                                            cv::Mat& distCoeffs) {
-  std::string file_path;
-  const char* home_dir = getenv("HOME");
-  if (home_dir) {
-    file_path =
-        std::string(home_dir) + "/GompeiVision/" + role + "_calibration.yml";
-  } else {
-    file_path = role + "_calibration.yml";  // Fallback to current directory
-  }
-  try {
-    cv::FileStorage fs(file_path, cv::FileStorage::READ);
-    if (!fs.isOpened()) {
-      std::cerr << "[" << role
-                << "] ERROR: Could not open calibration file: " << file_path
-                << std::endl;
-      return false;
-    }
-    fs["camera_matrix"] >> cameraMatrix;
-    fs["distortion_coefficients"] >> distCoeffs;
-    fs.release();
-    std::cout << "[" << role << "] Calibration data loaded successfully."
+bool PipelineHelper::load_camera_intrinsics(
+    const ConfigInterface& configInterface, cv::Mat& cameraMatrix,
+    cv::Mat& distortionCoefficients) {
+  cameraMatrix = configInterface.getCameraMatrix();
+  distortionCoefficients = configInterface.getDistortionCoeffs();
+
+  if (cameraMatrix.empty() || distortionCoefficients.empty()) {
+    std::cerr << "[PipelineHelper] ERROR: Camera intrinsics (matrix or "
+                 "distortion coefficients) are empty."
               << std::endl;
-  } catch (const cv::Exception& e) {
-    std::cerr << "[" << role << "] ERROR: Failed to read calibration data. "
-              << e.what() << std::endl;
     return false;
   }
+
   return true;
 }
 

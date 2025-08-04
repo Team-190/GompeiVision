@@ -53,6 +53,23 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
 
   m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id);
 
+  m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+      *m_config_interface, m_camera_matrix, m_dist_coeffs);
+
+  if (m_intrinsics_loaded) {
+    std::cout << "[" << m_role << "] Initial Camera Matrix: "
+              << cv::format(m_camera_matrix, cv::Formatter::FMT_DEFAULT)
+              << std::endl;
+    std::cout << "[" << m_role << "] Initial Distortion Coefficients: "
+              << cv::format(m_dist_coeffs, cv::Formatter::FMT_DEFAULT)
+              << std::endl;
+  } else {
+    std::cerr << "[" << m_role
+              << "] WARNING: Cannot run Pose Estimator without valid "
+                 "calibration. Pose estimation will be disabled."
+              << std::endl;
+  }
+
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
 }
@@ -73,6 +90,40 @@ void Pipeline::during() {
   if (!m_is_running) return;
 
   m_config_interface->update();
+
+  cv::Mat new_camera_matrix;
+  cv::Mat new_dist_coeffs;
+  const bool new_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+      *m_config_interface, new_camera_matrix, new_dist_coeffs);
+
+  bool changed = false;
+  if (m_intrinsics_loaded != new_intrinsics_loaded) {
+    changed = true;
+  } else if (new_intrinsics_loaded) {
+    if (cv::norm(m_camera_matrix, new_camera_matrix, cv::NORM_L1) != 0 ||
+        cv::norm(m_dist_coeffs, new_dist_coeffs, cv::NORM_L1) != 0) {
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    m_camera_matrix = new_camera_matrix.clone();
+    m_dist_coeffs = new_dist_coeffs.clone();
+    m_intrinsics_loaded = new_intrinsics_loaded;
+
+    if (m_intrinsics_loaded) {
+      std::cout << "[" << m_role << "] Camera Matrix updated: "
+                << cv::format(m_camera_matrix, cv::Formatter::FMT_DEFAULT)
+                << std::endl;
+      std::cout << "[" << m_role << "] Distortion Coefficients updated: "
+                << cv::format(m_dist_coeffs, cv::Formatter::FMT_DEFAULT)
+                << std::endl;
+    } else {
+      std::cerr << "[" << m_role
+                << "] WARNING: Camera intrinsics have been invalidated."
+                << std::endl;
+    }
+  }
 
   if (m_config_interface->isSetupMode()) {
     // --- We are in Setup Mode ---
@@ -189,19 +240,8 @@ bool Pipeline::isRunning() const { return m_is_running; }
 void Pipeline::processing_loop() {
   cv::Mat cameraMatrix;
   cv::Mat distCoeffs;
-  bool intrinsics_loaded = false;
-
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
-
-  intrinsics_loaded =
-      PipelineHelper::load_camera_intrinsics(m_role, cameraMatrix, distCoeffs);
-  if (!intrinsics_loaded) {
-    std::cerr << "[" << m_role
-              << "] WARNING: Cannot run Pose Estimator without valid "
-                 "calibration. Pose estimation will be disabled."
-              << std::endl;
-  }
 
   QueuedFrame frame;
   std::chrono::time_point<std::chrono::steady_clock> timestamp;
@@ -244,11 +284,14 @@ void Pipeline::processing_loop() {
     const double instant_fps = 1.0 / elapsed_seconds.count();
     smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-    if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
+    if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
       AprilTagResult result;
       result.timestamp = frame_observation.timestamp;
       result.camera_role = m_role;
       constexpr double tag_size_m = 0.1651;
+
+      cameraMatrix = m_camera_matrix.clone();
+      distCoeffs = m_dist_coeffs.clone();
 
       SingleTagPoseEstimator::estimatePose(
           frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);

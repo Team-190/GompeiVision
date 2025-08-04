@@ -7,6 +7,7 @@
 
 #include "calibrator/CalibrationSession.h"
 #include "frc/geometry/Pose3d.h"
+#include "io/ConfigInterface.h"
 #include "nlohmann/json.hpp"
 
 class PipelineHelper {
@@ -30,9 +31,9 @@ class PipelineHelper {
       std::mutex& calibrationStatusMutex, std::string& calibrationStatusMessage,
       const std::string& output_file);
 
-  static bool load_camera_intrinsics(const std::string& role,
+  static bool load_camera_intrinsics(const ConfigInterface& configInterface,
                                      cv::Mat& cameraMatrix,
-                                     cv::Mat& distCoeffs);
+                                     cv::Mat& distortionCoefficients);
 
   static std::map<int, frc::Pose3d> load_field_layout(
       const std::string& field_name);
