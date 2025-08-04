@@ -1,5 +1,6 @@
 #include "io/ConfigInterface.h"
 
+#include <chrono>
 #include <iostream>
 #include <vector>
 
@@ -23,12 +24,11 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
       nt::NetworkTableInstance::GetDefault().GetTable("/cameras/" + hardwareID);
   m_configTable = nt::NetworkTableInstance::GetDefault().GetTable(
       "/cameras/" + hardwareID + "/config");
-  std::cout << "the topics or whatever: " << m_configTable->GetTopics().data()
-            << std::endl;
   m_outputTable = nt::NetworkTableInstance::GetDefault().GetTable(
       "/cameras/" + hardwareID + "/output");
 
   if (m_table) {
+    std::cout << "Initializing subscribers" << std::endl;
     // --- Initialize Subscribers ---
     // Subscribe to each topic with a default value. This ensures
     // that if the topic doesn't exist on the server yet, we have
@@ -67,9 +67,8 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
     m_widthPub = m_outputTable->GetIntegerTopic(nt_keys::kWidth).Publish();
     m_heightPub = m_outputTable->GetIntegerTopic(nt_keys::kHeight).Publish();
 
-    // Perform an initial update to populate the cache with values from
-    // NetworkTables if they exist.
-    update();
+    // Start the initialization thread
+    m_initThread = std::thread(&ConfigInterface::initializationThreadFunc, this);
 
     logInfo("ConfigInterface initialized for table: " + hardwareID);
   } else {
@@ -78,12 +77,37 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
   }
 }
 
-ConfigInterface::~ConfigInterface() {}
+ConfigInterface::~ConfigInterface() {
+  if (m_initThread.joinable()) {
+    m_initThread.join();
+  }
+}
+
+void ConfigInterface::initializationThreadFunc() {
+  while (true) {
+    update();
+
+    // Check if we have received non-default values.
+    // The role and camera matrix are good indicators of initialization.
+    if (!m_role.empty() && !m_cameraMatrix.empty()) {
+      std::lock_guard<std::mutex> lock(m_initMutex);
+      m_initialized = true;
+      logInfo("Initial configuration received from NetworkTables.");
+      m_initCv.notify_all();  // Notify waiting threads
+      return;                 // Exit the thread
+    }
+
+    // Wait a bit before polling again to avoid busy-waiting.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+}
+
+void ConfigInterface::waitForInitialization() {
+  std::unique_lock<std::mutex> lock(m_initMutex);
+  m_initCv.wait(lock, [this] { return m_initialized; });
+}
 
 void ConfigInterface::update() {
-  // Process the queue for each subscribed topic. This pulls all changes since
-  // the last call to update().
-
   m_setupMode = m_setupModeSub.Get();
   m_role = m_roleSub.Get();
 
@@ -137,19 +161,6 @@ int ConfigInterface::getWidth() const { return m_width; }
 int ConfigInterface::getHeight() const { return m_height; }
 
 // --- Configuration Setters ---
-
-void ConfigInterface::setConfig(const LocalConfig& config) {
-  if (!isSetupMode()) {
-    logError("Attempted to set config while not in setup mode.");
-    return;
-  }
-  if (config.cameraMatrix) setCameraMatrix(*config.cameraMatrix);
-  if (config.distortionCoeffs) setDistortionCoeffs(*config.distortionCoeffs);
-  if (config.exposure) setExposure(*config.exposure);
-  if (config.gain) setGain(*config.gain);
-  if (config.width) setWidth(*config.width);
-  if (config.height) setHeight(*config.height);
-}
 
 void ConfigInterface::setCameraMatrix(const cv::Mat& matrix) {
   if (matrix.rows != 3 || matrix.cols != 3 || matrix.type() != CV_64F) {

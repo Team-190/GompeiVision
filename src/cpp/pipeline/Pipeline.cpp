@@ -26,6 +26,8 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
       m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
 
+  m_config_interface->waitForInitialization();
+
   m_config_interface->update();
 
   m_role = m_config_interface->getRole();
