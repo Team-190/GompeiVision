@@ -84,32 +84,28 @@ void ConfigInterface::update() {
   // Process the queue for each subscribed topic. This pulls all changes since
   // the last call to update().
 
-  std::cout << "Setup mode was " << m_setupMode;
   m_setupMode = m_setupModeSub.Get();
-  std::cout << " and is now " << m_setupMode << std::endl;
-
-  std::cout << "Role was " << m_role;
   m_role = m_roleSub.Get();
-  std::cout << " and is now " << m_role << std::endl;
 
-  std::cout << "Exposure was " << m_exposure;
+  // Update camera matrix from NetworkTables
+  std::vector<double> cameraMatrixData = m_cameraMatrixSub.Get();
+  if (cameraMatrixData.size() == 9) {
+    // Create a Mat header for the data and then clone it to own the data
+    m_cameraMatrix = cv::Mat(3, 3, CV_64F, cameraMatrixData.data()).clone();
+  }
+
+  // Update distortion coefficients from NetworkTables
+  std::vector<double> distCoeffsData = m_distCoeffsSub.Get();
+  if (!distCoeffsData.empty()) {
+    m_distortionCoeffs =
+        cv::Mat(1, distCoeffsData.size(), CV_64F, distCoeffsData.data())
+            .clone();
+  }
+
   m_exposure = m_exposureSub.Get();
-  std::cout << " and is now " << m_exposure << std::endl;
-
-  std::cout << "Gain was " << m_gain;
   m_gain = m_gainSub.Get();
-  std::cout << " and is now " << m_gain << std::endl;
-
-  std::cout << "Width was " << m_width;
   m_width = m_widthSub.Get();
-  std::cout << " and is now " << m_width << std::endl;
-
-  std::cout << "Height was " << m_height;
   m_height = m_heightSub.Get();
-  std::cout << " and is now " << m_height << std::endl;
-
-  // m_cameraMatrix = cv::Mat(3, 3, CV_64F, m_cameraMatrixSub.Get().data());
-  // m_distortionCoeffs = cv::Mat(1, 5, CV_64F, m_distCoeffsSub.Get().data());
 }
 
 // --- State Getters ---
