@@ -7,9 +7,12 @@
 #include <networktables/NetworkTableInstance.h>
 #include <networktables/StringTopic.h>
 
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <opencv2/core/mat.hpp>
 #include <string>
+#include <thread>
 
 /**
  * @class ConfigInterface
@@ -26,6 +29,7 @@
  */
 class ConfigInterface {
   struct LocalConfig {
+    std::optional<std::string> role;
     std::optional<cv::Mat> cameraMatrix;
     std::optional<cv::Mat> distortionCoeffs;
     std::optional<int> exposure;
@@ -44,6 +48,12 @@ class ConfigInterface {
    */
   explicit ConfigInterface(const std::string&);
   ~ConfigInterface();
+
+  /**
+   * @brief Blocks until the initial configuration values have been received
+   * from NetworkTables.
+   */
+  void waitForInitialization();
 
   /**
    * @brief Fetches the latest values from all NetworkTables topics.
@@ -122,6 +132,12 @@ class ConfigInterface {
    */
   void setHeight(int height);
 
+  /**
+   * @brief The target function for the initialization thread. Polls for
+   * initial values.
+   */
+  void initializationThreadFunc();
+
   // --- NetworkTables Handles ---
   std::shared_ptr<nt::NetworkTable> m_table;
   std::shared_ptr<nt::NetworkTable> m_configTable;
@@ -155,6 +171,12 @@ class ConfigInterface {
   int m_gain;
   int m_width;
   int m_height;
+
+  // --- Threading and Synchronization for Initialization ---
+  std::thread m_initThread;
+  std::mutex m_initMutex;
+  std::condition_variable m_initCv;
+  bool m_initialized = false;
 
   // --- Logging Helpers ---
   static void logInfo(const std::string& message);
