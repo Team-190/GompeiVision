@@ -16,6 +16,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <ranges>
+
 #include "openpnp-capture.h"
 #include "util/Platform.h"  // Our helper for finding the executable path
 
@@ -157,7 +159,7 @@ void PipelineManager::startAll() {
     while (ready_pids.size() < m_child_pids.size() && !timed_out) {
       FD_ZERO(&read_fds);
       max_fd = 0;
-      for (const auto& [pid, fd] : worker_pipes) {
+      for (const auto& fd : worker_pipes | std::views::values) {
         FD_SET(fd, &read_fds);
         if (fd > max_fd) {
           max_fd = fd;

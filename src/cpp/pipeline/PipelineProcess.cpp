@@ -42,7 +42,7 @@ int main(const int argc, char* argv[]) {
     // Each worker process must initialize its own NT client.
     nt::NetworkTableInstance nt_inst = nt::NetworkTableInstance::GetDefault();
     nt_inst.StartClient4("GompeiVision-" + hardware_id);
-    nt_inst.SetServerTeam(190);
+    nt_inst.SetServer("10.1.90.2");
 
     // Register signal handlers for graceful shutdown.
     signal(SIGTERM, signal_handler);
@@ -58,7 +58,7 @@ int main(const int argc, char* argv[]) {
     // --- Signal readiness to manager by writing to the pipe ---
     std::cout << "[Worker] Signaling readiness to manager via pipe fd "
               << pipe_write_fd << std::endl;
-    const char ready_signal = 'R';
+    constexpr char ready_signal = 'R';
     if (write(pipe_write_fd, &ready_signal, 1) != 1) {
       std::cerr
           << "[Worker] FATAL: Failed to write readiness signal to pipe. Error: "
@@ -77,6 +77,7 @@ int main(const int argc, char* argv[]) {
     // pipeline is stopped (e.g., by the signal handler).
     while (g_pipeline->isRunning()) {
       g_pipeline->during();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     std::cout << "[Worker] Pipeline for " << hardware_id << " has shut down."

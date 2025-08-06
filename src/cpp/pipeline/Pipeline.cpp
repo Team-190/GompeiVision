@@ -18,8 +18,8 @@
 #include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
 
-Pipeline::Pipeline(const std::string& device_path, const std::string& hardware_id,
-                   const int stream_port)
+Pipeline::Pipeline(const std::string& device_path,
+                   const std::string& hardware_id, const int stream_port)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
 
@@ -153,9 +153,9 @@ void Pipeline::during() {
       m_active_height = new_height;
 
       // 3. Apply to camera
-      if (m_camera) {
-        m_camera->setResolution(m_active_width, m_active_height);
-      }
+      // if (m_camera) {
+      //   m_camera->setResolution(m_active_width, m_active_height);
+      // }
       // The server will be started (or restarted) by the logic below.
     }
 
