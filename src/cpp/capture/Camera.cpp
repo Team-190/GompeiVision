@@ -117,33 +117,6 @@ bool Camera::setBrightness(const int value) {
   return true;
 }
 
-bool Camera::setResolution(const int width, const int height) {
-  if (!isConnected()) {
-    return false;
-  }
-
-  logInfo("Setting resolution to " + std::to_string(width) + "x" +
-          std::to_string(height));
-
-  if (!m_capture.set(cv::CAP_PROP_FRAME_WIDTH, static_cast<double>(width))) {
-    logError("Failed to set frame width.");
-    return false;
-  }
-
-  if (!m_capture.set(cv::CAP_PROP_FRAME_HEIGHT, static_cast<double>(height))) {
-    logError("Failed to set frame height.");
-    return false;
-  }
-
-  m_width = static_cast<int>(m_capture.get(cv::CAP_PROP_FRAME_WIDTH));
-  m_height = static_cast<int>(m_capture.get(cv::CAP_PROP_FRAME_HEIGHT));
-
-  logInfo("Actual stream resolution: " + std::to_string(m_width) + "x" +
-          std::to_string(m_height));
-
-  return true;
-}
-
 // Checks if the camera is open and ready for use
 bool Camera::isConnected() const { return m_capture.isOpened(); }
 

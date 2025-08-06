@@ -69,6 +69,37 @@ class ThreadSafeQueue {
   }
 
   /**
+   * @brief Waits for an item for a specific duration and then pops it.
+   * This method is thread-safe. It will block until an item is ready,
+   * the timeout is reached, or the queue is shut down.
+   * @param[out] item A reference to store the popped item.
+   * @param timeout The maximum time to wait for an item.
+   * @return True if an item was successfully popped, false if the wait timed
+   * out or the queue was shut down.
+   */
+  bool waitAndPopWithTimeout(T& item, std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex);
+
+    // Wait until the queue is not empty, the shutdown flag is set, or timeout
+    if (!condVar.wait_for(
+            lock, timeout, [this] { return !queue.empty() || isShutdown; })) {
+      // wait_for returned false, meaning it timed out.
+      return false;
+    }
+
+    // If we woke up because of shutdown and the queue is empty, return false.
+    if (isShutdown && queue.empty()) {
+      return false;
+    }
+
+    // We have the lock and the queue is not empty. Pop the item.
+    item = queue.front();
+    queue.pop();
+
+    return true;
+  }
+
+  /**
    * @brief Gets the current number of items in the queue.
    * This method is thread-safe.
    * @return The number of items currently in the queue.
