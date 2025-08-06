@@ -1,7 +1,10 @@
 #include "pipeline/PipelineProcess.h"
 
+#include <unistd.h>  // For write() and close()
+
 #include <chrono>
 #include <csignal>
+#include <cstring>  // For strerror
 #include <iostream>
 #include <memory>
 #include <string>
@@ -24,17 +27,17 @@ void signal_handler(const int signum) {
 int main(const int argc, char* argv[]) {
   if (argc < 5) {
     std::cerr << "Usage: " << argv[0]
-              << " <device_index> <hardware_id> <stream_port> "
-                 "<control_port>"
+              << " <device_path> <hardware_id> <stream_port> <pipe_write_fd>"
               << std::endl;
     return 1;
   }
 
+  int pipe_write_fd = -1;
   try {
-    const int device_index = std::stoi(argv[1]);
+    const std::string device_path = argv[1];
     const std::string hardware_id = argv[2];
     const int stream_port = std::stoi(argv[3]);
-    const int control_port = std::stoi(argv[4]);
+    pipe_write_fd = std::stoi(argv[4]);
 
     // Each worker process must initialize its own NT client.
     nt::NetworkTableInstance nt_inst = nt::NetworkTableInstance::GetDefault();
@@ -46,11 +49,26 @@ int main(const int argc, char* argv[]) {
     signal(SIGINT, signal_handler);
 
     std::cout << "[Worker] Creating pipeline for device " << hardware_id
-              << " (index " << device_index << ")" << std::endl;
+              << " (path " << device_path << ")" << std::endl;
 
-    g_pipeline = std::make_unique<Pipeline>(device_index, hardware_id,
-                                            stream_port, control_port);
+    g_pipeline =
+        std::make_unique<Pipeline>(device_path, hardware_id, stream_port);
     g_pipeline->start();
+
+    // --- Signal readiness to manager by writing to the pipe ---
+    std::cout << "[Worker] Signaling readiness to manager via pipe fd "
+              << pipe_write_fd << std::endl;
+    const char ready_signal = 'R';
+    if (write(pipe_write_fd, &ready_signal, 1) != 1) {
+      std::cerr
+          << "[Worker] FATAL: Failed to write readiness signal to pipe. Error: "
+          << strerror(errno) << std::endl;
+      close(pipe_write_fd);
+      return 1;
+    }
+
+    close(pipe_write_fd);
+    std::cout << "[Worker] Readiness signal sent and pipe closed." << std::endl;
 
     std::cout << "[Worker] Pipeline started. Running until signal..."
               << std::endl;
@@ -67,6 +85,11 @@ int main(const int argc, char* argv[]) {
   } catch (const std::exception& e) {
     std::cerr << "[Worker] ERROR: An exception occurred: " << e.what()
               << std::endl;
+    if (pipe_write_fd != -1) {
+      // In case the exception happened after the fd was assigned but before it
+      // was closed.
+      close(pipe_write_fd);
+    }
     return 1;
   }
 

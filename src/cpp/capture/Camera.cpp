@@ -3,18 +3,17 @@
 #include <iostream>
 
 // Constructor: Initializes and opens the camera using OpenCV
-Camera::Camera(const int deviceIndex, const std::string& hardwareID,
+Camera::Camera(const std::string& device_path, const std::string& hardwareID,
                const int width, const int height)
-    : m_hardwareID(hardwareID), m_deviceIndex(deviceIndex) {
+    : m_hardwareID(hardwareID), m_device_path(device_path) {
   logInfo("Initializing with OpenCV backend...");
 
-  // Open the camera stream using the specified device index and the Video4Linux
+  // Open the camera stream using the specified device path and the Video4Linux
   // backend. Using V4L2 is often more reliable on Linux for setting properties.
-  m_capture.open(m_deviceIndex, cv::CAP_V4L2);
+  m_capture.open(m_device_path, cv::CAP_V4L2);
 
   if (!m_capture.isOpened()) {
-    logError("Failed to open camera stream at index " +
-             std::to_string(m_deviceIndex));
+    logError("Failed to open camera stream at path " + m_device_path);
     return;
   }
 

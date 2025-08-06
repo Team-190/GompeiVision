@@ -16,13 +16,12 @@ class Camera {
  public:
   /**
    * @brief Constructs a Camera object and attempts to open the device.
-   * @param deviceIndex The numerical index of the camera (e.g., 0 for
-   * /dev/video0).
+   * @param device_path The system path to the camera (e.g., /dev/video0).
    * @param hardwareID A unique, persistent ID for logging and identification.
    * @param width The desired frame width for the camera stream.
    * @param height The desired frame height for the camera stream.
    */
-  Camera(int deviceIndex, const std::string& hardwareID, int width, int height);
+  Camera(const std::string& device_path, const std::string& hardwareID, int width, int height);
 
   /**
    * @brief Destructor that ensures the camera stream is properly released.
@@ -87,7 +86,7 @@ class Camera {
 
   // Member Variables
   std::string m_hardwareID;
-  int m_deviceIndex;
+  std::string m_device_path;
 
   // Frame dimensions, retrieved from the camera after opening it.
   int m_width = 0;

@@ -17,6 +17,7 @@ constexpr auto kExposure = "exposure";
 constexpr auto kGain = "gain";
 constexpr auto kWidth = "width";
 constexpr auto kHeight = "height";
+constexpr auto kCompressed = "compressed";
 }  // namespace nt_keys
 
 ConfigInterface::ConfigInterface(const std::string& hardwareID) {
@@ -54,6 +55,8 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
         m_configTable->GetIntegerTopic(nt_keys::kWidth).Subscribe(0, options);
     m_heightSub =
         m_configTable->GetIntegerTopic(nt_keys::kHeight).Subscribe(0, options);
+    m_compressedSub = m_configTable->GetBooleanTopic(nt_keys::kCompressed)
+                          .Subscribe(false, options);
     // --- Initialize Publishers ---
     // Get publishers for each topic. These will be used to send data back
     // when in setup mode.
@@ -68,7 +71,8 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
     m_heightPub = m_outputTable->GetIntegerTopic(nt_keys::kHeight).Publish();
 
     // Start the initialization thread
-    m_initThread = std::thread(&ConfigInterface::initializationThreadFunc, this);
+    m_initThread =
+        std::thread(&ConfigInterface::initializationThreadFunc, this);
 
     logInfo("ConfigInterface initialized for table: " + hardwareID);
   } else {
@@ -130,6 +134,7 @@ void ConfigInterface::update() {
   m_gain = m_gainSub.Get();
   m_width = m_widthSub.Get();
   m_height = m_heightSub.Get();
+  m_compressed = m_compressedSub.Get();
 }
 
 // --- State Getters ---
@@ -159,6 +164,8 @@ int ConfigInterface::getGain() const { return m_gain; }
 int ConfigInterface::getWidth() const { return m_width; }
 
 int ConfigInterface::getHeight() const { return m_height; }
+
+bool ConfigInterface::getCompressed() const { return m_compressed; }
 
 // --- Configuration Setters ---
 

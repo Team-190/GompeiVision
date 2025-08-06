@@ -8,7 +8,6 @@
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <opencv2/calib3d.hpp>
-#include <opencv2/imgproc.hpp>
 #include <string>
 #include <thread>
 
@@ -19,11 +18,9 @@
 #include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
 
-Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
-                   const int stream_port, const int control_port)
-    : m_hardware_id(hardware_id),
-      m_control_port(control_port),
-      m_stream_port(stream_port) {
+Pipeline::Pipeline(const std::string& device_path, const std::string& hardware_id,
+                   const int stream_port)
+    : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
 
   m_config_interface->waitForInitialization();
@@ -40,7 +37,7 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
 
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
-  m_camera = std::make_unique<Camera>(deviceIndex, hardware_id, m_active_width,
+  m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
                                       m_active_height);
 
   if (!m_camera || !m_camera->isConnected()) {
@@ -49,9 +46,9 @@ Pipeline::Pipeline(const int deviceIndex, const std::string& hardware_id,
     return;
   }
 
-  m_field = PipelineHelper::load_field_layout("2025-reefscape-andymark.json");
-  m_camera->setExposure(m_active_exposure);
-  m_camera->setBrightness(m_active_gain);
+  m_field = PipelineHelper::load_field_layout();
+  // m_camera->setExposure(m_active_exposure);
+  // m_camera->setBrightness(m_active_gain);
 
   m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id);
 
@@ -146,8 +143,7 @@ void Pipeline::during() {
                 << "x" << new_height << ". Restarting stream." << std::endl;
 
       // 1. Stop the server if it's running
-      if (m_server.is_running()) {
-        m_server.stop();
+      if (m_config_interface->isSetupMode()) {
         m_mjpeg_server.reset();
         m_cv_source.reset();
       }
@@ -182,7 +178,7 @@ void Pipeline::during() {
     }
 
     // Ensure the server is running if we are in setup mode.
-    if (!m_server.is_running()) {
+    if (m_config_interface->isSetupMode() && !m_mjpeg_server) {
       std::cout << "[" << m_role
                 << "] Setup mode enabled. Initializing servers." << std::endl;
 
@@ -198,25 +194,15 @@ void Pipeline::during() {
 
       std::cout << "[" << m_role << "] MJPEG stream available at port "
                 << m_stream_port << std::endl;
-
-      std::thread(&Pipeline::server_loop, this).detach();
     }
 
   } else {
     // --- We are NOT in Setup Mode ---
-    if (m_server.is_running()) {
+    if (!m_config_interface->isSetupMode() && m_mjpeg_server)
       std::cout << "[" << m_role << "] Setup mode disabled. Stopping servers."
                 << std::endl;
-      m_server.stop();
-      m_mjpeg_server.reset();
-      m_cv_source.reset();
-    }
-  }
-
-  // Special case for calibration
-  if (m_config_interface->isSetupMode() && m_is_calibrating) {
-    m_is_calibrating = false;
-    m_server.stop();
+    m_mjpeg_server.reset();
+    m_cv_source.reset();
   }
 }
 
@@ -225,23 +211,16 @@ void Pipeline::stop() {
   m_is_running = false;
 
   m_estimated_poses.shutdown();
-  if (m_server.is_running()) {
-    m_server.stop();
-  }
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
 
-  if (m_calibration_worker_thread.joinable())
-    m_calibration_worker_thread.join();
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
 
 bool Pipeline::isRunning() const { return m_is_running; }
 
 void Pipeline::processing_loop() {
-  cv::Mat cameraMatrix;
-  cv::Mat distCoeffs;
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
 
@@ -251,24 +230,8 @@ void Pipeline::processing_loop() {
   while (m_is_running) {
     constexpr double alpha = 0.05;
 
-    if (m_is_calibrating.load()) continue;
-
     if (!m_camera || !m_camera->getFrame(frame.frame, timestamp)) {
       continue;
-    }
-
-    {
-      std::lock_guard<std::mutex> lock(m_calibration_mutex);
-      if (m_calibration_session) {
-        m_calibration_session->process_frame(frame.frame,
-                                             m_capture_next_frame_for_calib);
-
-        const std::vector<cv::Point2f> all_points =
-            m_calibration_session->get_all_corners();
-        for (const auto& point : all_points) {
-          cv::circle(frame.frame, point, 6, cv::Scalar(0, 255, 0), -1);
-        }
-      }
     }
 
     if (m_config_interface->isSetupMode() && m_cv_source) {
@@ -292,8 +255,8 @@ void Pipeline::processing_loop() {
       result.camera_role = m_role;
       constexpr double tag_size_m = 0.1651;
 
-      cameraMatrix = m_camera_matrix.clone();
-      distCoeffs = m_dist_coeffs.clone();
+      cv::Mat cameraMatrix = m_camera_matrix.clone();
+      cv::Mat distCoeffs = m_dist_coeffs.clone();
 
       SingleTagPoseEstimator::estimatePose(
           frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
@@ -312,7 +275,6 @@ void Pipeline::processing_loop() {
 
 void Pipeline::networktables_loop() {
   while (m_is_running) {
-    if (m_is_calibrating.load()) continue;
     AprilTagResult result;
     if (!m_estimated_poses.waitAndPop(result)) {
       continue;
@@ -322,222 +284,4 @@ void Pipeline::networktables_loop() {
       m_output_publisher->SendAprilTagResult(result);
     }
   }
-}
-
-void Pipeline::server_loop() {
-  std::cout << "[" << m_role << "] Control panel server thread started on port "
-            << m_control_port << "." << std::endl;
-
-  const std::string html_content =
-      R"raw(<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Pipeline: )raw" +
-      m_role + R"raw(</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 2em; }
-        h1, h2 { color: #1c1e21; }
-        .container { display: flex; flex-wrap: wrap; gap: 2em; }
-        .stream-container { flex: 2; min-width: 320px; }
-        .stream { border: 1px solid #dddfe2; border-radius: 8px; background-color: #000; max-width: 100%; height: auto; }
-        .controls { flex: 1; min-width: 300px; background-color: #fff; padding: 1.5em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        button { background-color: #1877f2; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-size: 1em; margin-top: 10px; width: 100%; transition: background-color 0.2s; }
-        button:hover { background-color: #166fe5; }
-        button:disabled { background-color: #9cb4d8; cursor: not-allowed; }
-        p { margin: 0.5em 0; }
-        input[type="text"], input[type="number"] { box-sizing: border-box; width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        #frameCount { font-weight: bold; color: #1877f2; font-size: 1.2em; }
-        #statusMessage { font-weight: bold; color: #333; display: block; margin-top: 5px; min-height: 40px; }
-        .form-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: center; }
-        .form-grid label { text-align: right; }
-    </style>
-</head>
-<body>
-    <h1 id="main-title">GompeiVision Pipeline: )raw" +
-      m_role + R"raw(</h1>
-    <div class="container">
-        <div class="stream-container">
-            <h2>Live Stream</h2>
-            <img id="stream" class="stream" width=")raw" +
-      std::to_string(m_active_width) + R"raw(" height=")raw" +
-      std::to_string(m_active_height) +
-      R"raw(" alt="Live MJPEG Stream">
-        </div>
-        <div class="controls">
-            <h2>Calibration Control</h2>
-            <form id="startForm">
-                <div class="form-grid">
-                    <label for="squaresX">Board Width:</label>
-                    <input type="number" id="squaresX" value="11" required>
-                    <label for="squaresY">Board Height:</label>
-                    <input type="number" id="squaresY" value="8" required>
-                    <label for="squareLength">Square (m):</label>
-                    <input type="number" id="squareLength" value="0.025" step="0.001" required>
-                    <label for="markerLength">Marker (m):</label>
-                    <input type="number" id="markerLength" value="0.018" step="0.001" required>
-                </div>
-                <button type="submit">Start New Calibration</button>
-            </form>
-            <hr style="margin: 20px 0; border: 1px solid #eee;">
-            <p>Frames Captured: <span id="frameCount">0</span></p>
-            <p>Status: <br><span id="statusMessage">N/A</span></p>
-            <button id="captureBtn">Capture Frame</button>
-            <button id="finishBtn">Finish & Save</button>
-        </div>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const streamImg = document.getElementById('stream');
-            streamImg.src = `http://${window.location.hostname}:)raw" +
-      std::to_string(m_stream_port) + R"raw(/stream.mjpg`;
-
-            document.getElementById('startForm').onsubmit = handleStartCalibration;
-            document.getElementById('captureBtn').onclick = () => handlePost('/calibration/capture');
-            document.getElementById('finishBtn').onclick = () => handlePost('/calibration/finish');
-
-            setInterval(updateStatus, 1500); // Poll for status updates
-        });
-
-        const frameCountSpan = document.getElementById('frameCount');
-        const statusSpan = document.getElementById('statusMessage');
-        const finishBtn = document.getElementById('finishBtn');
-
-        function handleStartCalibration(event) {
-            event.preventDefault();
-            const data = {
-                squares_x: parseInt(document.getElementById('squaresX').value),
-                squares_y: parseInt(document.getElementById('squaresY').value),
-                square_length_m: parseFloat(document.getElementById('squareLength').value),
-                marker_length_m: parseFloat(document.getElementById('markerLength').value)
-            };
-            statusSpan.textContent = 'Starting new session...';
-            fetch('/calibration/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).catch(error => { statusSpan.textContent = 'Error: ' + error; });
-            return false;
-        }
-
-        function handlePost(url) {
-            statusSpan.textContent = 'Command sent...';
-            fetch(url, { method: 'POST' })
-                .catch(error => { statusSpan.textContent = 'Error: ' + error; });
-            return false;
-        }
-
-        function updateStatus() {
-            fetch('/calibration/status')
-                .then(response => response.json())
-                .then(data => {
-                    frameCountSpan.textContent = data.frame_count;
-                    statusSpan.textContent = data.status_message;
-                    finishBtn.disabled = data.is_calibrating;
-                })
-                .catch(error => {
-                    console.error('Error fetching status:', error);
-                    statusSpan.textContent = 'Error fetching status.';
-                });
-        }
-    </script>
-</body>
-</html>
-)raw";
-
-  m_server.Get(
-      "/", [html_content](const httplib::Request& req, httplib::Response& res) {
-        res.set_content(html_content, "text/html");
-      });
-
-  m_server.Post("/calibration/start", [this](const httplib::Request& req,
-                                             httplib::Response& res) {
-    try {
-      auto json_body = nlohmann::json::parse(req.body);
-      const int squares_x = json_body.at("squares_x");
-      const int squares_y = json_body.at("squares_y");
-      const float square_length_m = json_body.at("square_length_m");
-      const float marker_length_m = json_body.at("marker_length_m");
-
-      PipelineHelper::start_calibration_session(
-          m_role, m_is_calibrating, m_calibration_mutex, m_calibration_session,
-          m_capture_next_frame_for_calib, m_calibration_status_mutex,
-          m_calibration_status_message, squares_x, squares_y, square_length_m,
-          marker_length_m);
-      res.set_content("OK: Calibration session started with new parameters.",
-                      "text/plain");
-    } catch (const nlohmann::json::exception& e) {
-      res.status = 400;
-      res.set_content("ERROR: Invalid JSON format or missing parameters. " +
-                          std::string(e.what()),
-                      "text/plain");
-    }
-  });
-
-  m_server.Post("/calibration/capture", [this](const httplib::Request& req,
-                                               httplib::Response& res) {
-    PipelineHelper::add_calibration_frame(m_capture_next_frame_for_calib);
-    res.set_content("OK: Capture command received.", "text/plain");
-  });
-
-  m_server.Get("/calibration/status", [this](const httplib::Request& req,
-                                             httplib::Response& res) {
-    nlohmann::json status_json;
-    {
-      std::lock_guard<std::mutex> lock(m_calibration_mutex);
-      status_json["frame_count"] =
-          m_calibration_session ? m_calibration_session->get_frame_count() : 0;
-    }
-    {
-      std::lock_guard<std::mutex> lock(m_calibration_status_mutex);
-      status_json["status_message"] = m_calibration_status_message;
-    }
-    status_json["is_calibrating"] = m_is_calibrating.load();
-
-    res.set_content(status_json.dump(), "application/json");
-  });
-
-  m_server.Post("/calibration/finish", [this](const httplib::Request& req,
-                                              httplib::Response& res) {
-    if (m_is_calibrating) {
-      res.status = 409;
-      res.set_content("ERROR: Calibration is already in progress.",
-                      "text/plain");
-      return;
-    }
-
-    if (m_calibration_worker_thread.joinable()) {
-      m_calibration_worker_thread.join();
-    }
-
-    m_is_calibrating = true;
-    {
-      std::lock_guard<std::mutex> lock(m_calibration_status_mutex);
-      m_calibration_status_message = "Processing... This may take a moment.";
-    }
-
-    std::string filename;
-    {
-      std::lock_guard<std::mutex> lock(m_role_mutex);
-      if (const char* home_dir = getenv("HOME")) {
-        filename = std::string(home_dir) + "/GompeiVision/" + m_role +
-                   "_calibration.yml";
-      } else {
-        filename = m_role + "_calibration.yml";
-      }
-    }
-
-    m_calibration_worker_thread = std::thread(
-        &PipelineHelper::async_finish_calibration, std::ref(m_is_calibrating),
-        std::ref(m_calibration_mutex), std::ref(m_calibration_session),
-        std::ref(m_calibration_status_mutex),
-        std::ref(m_calibration_status_message), filename);
-
-    res.set_content("OK: Final calibration process started in the background.",
-                    "text/plain");
-  });
-
-  m_server.listen("0.0.0.0", m_control_port);
-  std::cout << "[" << m_role << "] Control panel server stopped." << std::endl;
 }
