@@ -34,8 +34,6 @@ void signal_handler(const int signum) {
 }
 
 int main() {
-  nt::NetworkTableInstance::GetDefault().SetServerTeam(190);
-  nt::NetworkTableInstance::GetDefault().StartClient4("gompeivision");
   std::cout << "[Main] GompeiVision Manager starting up." << std::endl;
 
   // Register our signal_handler to be called on SIGINT (Ctrl+C) or SIGTERM.

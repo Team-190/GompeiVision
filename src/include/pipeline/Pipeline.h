@@ -6,12 +6,10 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include <opencv2/core.hpp>
 #include <string>
 #include <thread>
 
 #include "../io/OutputPublisher.h"
-#include "calibrator/CalibrationSession.h"
 #include "capture/Camera.h"
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
@@ -27,8 +25,8 @@ struct UdevContextDeleter {
 
 class Pipeline {
  public:
-  Pipeline(const int deviceIndex, const std::string& hardware_id,
-           const int stream_port, const int control_port);
+  Pipeline(const std::string& device_path, const std::string& hardware_id,
+           const int stream_port);
   ~Pipeline();
 
   void start();
@@ -40,7 +38,6 @@ class Pipeline {
  private:
   void processing_loop();
   void networktables_loop();
-  void server_loop();
 
   std::atomic<bool> m_is_running{false};
 
@@ -48,7 +45,6 @@ class Pipeline {
 
   std::string m_hardware_id;
   std::string m_role;
-  int m_control_port;
   int m_stream_port;
   std::mutex m_role_mutex;
 
@@ -63,20 +59,8 @@ class Pipeline {
 
   std::unique_ptr<Camera> m_camera;
 
-  httplib::Server m_server;
   std::unique_ptr<cs::MjpegServer> m_mjpeg_server;
   std::unique_ptr<cs::CvSource> m_cv_source;
-
-  // Calibration state
-  std::unique_ptr<CalibrationSession> m_calibration_session;
-  std::atomic<bool> m_capture_next_frame_for_calib{false};
-  std::mutex m_calibration_mutex;
-
-  // --- calibration worker -- -
-  std::thread m_calibration_worker_thread;
-  std::atomic<bool> m_is_calibrating{false};
-  std::string m_calibration_status_message;
-  std::mutex m_calibration_status_mutex;
 
   // --- Detectors ---
   FiducialDetector m_AprilTagDetector;
@@ -87,7 +71,6 @@ class Pipeline {
   // Threads & Control
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
-  std::thread m_server_thread;
 
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;

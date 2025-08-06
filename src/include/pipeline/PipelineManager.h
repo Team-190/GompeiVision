@@ -21,7 +21,7 @@
  * processes.
  */
 class PipelineManager {
- public:
+public:
   static PipelineManager& getInstance();
 
   PipelineManager(const PipelineManager&) = delete;
@@ -30,7 +30,7 @@ class PipelineManager {
   void startAll();
   void stopAll();
 
- private:
+private:
   PipelineManager();
   ~PipelineManager();
 

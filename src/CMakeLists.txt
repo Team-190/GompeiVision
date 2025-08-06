@@ -15,14 +15,12 @@ set(MANAGER_SOURCES
 
 # Sources required for the pipeline worker executable.
 set(WORKER_SOURCES
-        cpp/calibrator/CalibrationSession.cpp
         cpp/capture/Camera.cpp
         cpp/detector/FiducialDetector.cpp
         cpp/estimator/CameraPoseEstimator.cpp
         cpp/estimator/SingleTagPoseEstimator.cpp
         cpp/estimator/TagAngleCalculator.cpp
         cpp/io/ConfigInterface.cpp
-        cpp/io/FieldInterface.cpp
         cpp/io/OutputPublisher.cpp
         cpp/pipeline/Pipeline.cpp
         cpp/pipeline/PipelineHelper.cpp

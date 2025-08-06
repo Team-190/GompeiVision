@@ -36,6 +36,7 @@ class ConfigInterface {
     std::optional<int> gain;
     std::optional<int> width;
     std::optional<int> height;
+    std::optional<bool> compressed;
   };
 
  public:
@@ -89,10 +90,9 @@ class ConfigInterface {
   int getGain() const;
   int getWidth() const;
   int getHeight() const;
+  bool getCompressed() const;
 
   // --- Configuration Setters (only publish if in setup mode) ---
-
-  void setConfig(const LocalConfig& config);
 
  private:
   /**
@@ -152,6 +152,7 @@ class ConfigInterface {
   nt::IntegerSubscriber m_gainSub;
   nt::IntegerSubscriber m_widthSub;
   nt::IntegerSubscriber m_heightSub;
+  nt::BooleanSubscriber m_compressedSub;
 
   // Publishers for each configuration parameter
   nt::DoubleArrayPublisher m_cameraMatrixPub;
@@ -171,6 +172,7 @@ class ConfigInterface {
   int m_gain;
   int m_width;
   int m_height;
+  bool m_compressed;
 
   // --- Threading and Synchronization for Initialization ---
   std::thread m_initThread;
