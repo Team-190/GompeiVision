@@ -28,17 +28,6 @@
  * new values for the settings, allowing for live tuning.
  */
 class ConfigInterface {
-  struct LocalConfig {
-    std::optional<std::string> role;
-    std::optional<cv::Mat> cameraMatrix;
-    std::optional<cv::Mat> distortionCoeffs;
-    std::optional<int> exposure;
-    std::optional<int> gain;
-    std::optional<int> width;
-    std::optional<int> height;
-    std::optional<bool> compressed;
-  };
-
  public:
   /**
    * @brief Constructs the ConfigInterface and initializes NetworkTables

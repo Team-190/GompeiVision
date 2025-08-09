@@ -21,6 +21,7 @@ set(WORKER_SOURCES
         cpp/estimator/SingleTagPoseEstimator.cpp
         cpp/estimator/TagAngleCalculator.cpp
         cpp/io/ConfigInterface.cpp
+        cpp/io/FieldInterface.cpp
         cpp/io/OutputPublisher.cpp
         cpp/pipeline/Pipeline.cpp
         cpp/pipeline/PipelineHelper.cpp

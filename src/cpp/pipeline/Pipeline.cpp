@@ -46,7 +46,7 @@ Pipeline::Pipeline(const std::string& device_path,
     return;
   }
 
-  m_field = PipelineHelper::load_field_layout();
+  m_field = FieldInterface();
   // m_camera->setExposure(m_active_exposure);
   // m_camera->setBrightness(m_active_gain);
 
@@ -262,7 +262,8 @@ void Pipeline::processing_loop() {
           frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
       CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
-                                        distCoeffs, tag_size_m, m_field);
+                                        distCoeffs, tag_size_m,
+                                        m_field.getMap());
 
       TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                     distCoeffs, tag_size_m);
