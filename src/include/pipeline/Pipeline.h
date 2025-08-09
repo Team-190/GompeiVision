@@ -14,6 +14,7 @@
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
 #include "io/ConfigInterface.h"
+#include "io/FieldInterface.h"
 #include "util/QueuedFiducialData.h"
 #include "util/ThreadSafeQueue.h"
 
@@ -41,7 +42,7 @@ class Pipeline {
 
   std::atomic<bool> m_is_running{false};
 
-  std::map<int, frc::Pose3d> m_field;
+  FieldInterface m_field;
 
   std::string m_hardware_id;
   std::string m_role;
