@@ -44,6 +44,18 @@ void SingleTagPoseEstimator::estimatePose(
       pose.pose_0 = PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
       pose.error_1 = errors[1];
       pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+
+      units::meter_t distance;
+
+      if (pose.error_1.has_value() && pose.pose_1.has_value() &&
+          pose.error_1 < pose.error_0) {
+        distance = pose.pose_1->Translation().Norm();
+      } else {
+        distance = pose.pose_0.Translation().Norm();
+      }
+
+      pose.distance = distance;
+
       result.single_tag_poses.push_back(pose);
     }
   }

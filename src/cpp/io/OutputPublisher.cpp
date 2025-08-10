@@ -3,7 +3,6 @@
 #include <networktables/NetworkTableInstance.h>
 
 #include <chrono>
-#include <iostream>
 #include <vector>
 
 #include "util/PoseUtils.h"
@@ -29,7 +28,8 @@ void AppendPoseData(std::vector<double>& data, const frc::Pose3d& pose) {
 
 NTOutputPublisher::NTOutputPublisher(std::string_view hardware_id) {
   const auto nt_inst = nt::NetworkTableInstance::GetDefault();
-  const auto table = nt_inst.GetTable("/cameras/" + std::string(hardware_id) + "/output");
+  const auto table =
+      nt_inst.GetTable("/cameras/" + std::string(hardware_id) + "/output");
 
   constexpr nt::PubSubOptions options{
       .periodic = 0.01, .sendAll = true, .keepDuplicates = true};

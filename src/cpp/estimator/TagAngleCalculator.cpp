@@ -79,9 +79,9 @@ void TagAngleCalculator::calculate(const FiducialImageObservation& observation,
     }
 
     // 5. Store the final result for this tag
-    result.tag_angles.emplace_back(
-        TagAngleObservation{.tag_id = observation.tag_ids[i],
-                            .corners_angles = std::move(corner_angles),
-                            .distance = distance});
+    const auto tagAngleObservation = TagAngleObservation{
+        observation.tag_ids[i], std::move(corner_angles), distance};
+
+    result.tag_angles.emplace_back(tagAngleObservation);
   }
 }

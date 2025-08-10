@@ -258,8 +258,8 @@ void Pipeline::processing_loop() {
       cv::Mat cameraMatrix = m_camera_matrix.clone();
       cv::Mat distCoeffs = m_dist_coeffs.clone();
 
-      SingleTagPoseEstimator::estimatePose(
-          frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
+      // SingleTagPoseEstimator::estimatePose(
+      //     frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
 
       CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
                                         distCoeffs, tag_size_m,
