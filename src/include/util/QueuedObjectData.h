@@ -27,7 +27,7 @@ struct ObjDetectObservation {
  */
 struct ObjectDetectResult {
   std::string camera_role;  // To know which NT topic to publish to
-  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+  std::chrono::time_point<std::chrono::system_clock> timestamp;
   int fps;
 
   // A list of all objects found in the frame.

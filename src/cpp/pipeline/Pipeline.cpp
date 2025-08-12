@@ -225,7 +225,7 @@ void Pipeline::processing_loop() {
   double smoothed_fps = 0.0;
 
   QueuedFrame frame;
-  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+  std::chrono::time_point<std::chrono::system_clock> timestamp;
 
   while (m_is_running) {
     constexpr double alpha = 0.05;

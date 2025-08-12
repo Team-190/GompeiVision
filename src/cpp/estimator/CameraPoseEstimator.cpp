@@ -82,24 +82,17 @@ void CameraPoseEstimator::estimatePose(
         cv::Point3f(tag_size_m / 2.0, -tag_size_m / 2.0, 0.0),
         cv::Point3f(-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0)};
 
-    std::cout << "Defining vectors and Mats" << std::endl;
-
     cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
                         distCoeffs, rvecs, tvecs, false,
                         cv::SOLVEPNP_IPPE_SQUARE, cv::noArray(), cv::noArray(),
                         errors);
 
-    std::cout << "Solved PNP lol" << std::endl;
-
     // A valid solution must have two poses and corresponding errors.
     if (rvecs.size() == 2 && tvecs.size() == 2 && errors.size() == 2) {
-      std::cout << "Valid Capture" << std::endl;
       CameraPoseObservation pose;
       pose.tag_ids = observation.tag_ids;
       pose.error_0 = errors[0];
       pose.error_1 = errors[1];
-
-      std::cout << "defined pose" << std::endl;
 
       frc::Pose3d field_to_tag_pose =
           field_layout.find(observation.tag_ids[0])->second;
@@ -124,38 +117,24 @@ void CameraPoseEstimator::estimatePose(
       auto field_to_camera_pose_1 = frc::Pose3d(field_to_camera_1.Translation(),
                                                 field_to_camera_1.Rotation());
 
-      std::cout << "Transforms" << std::endl;
-
       pose.pose_0 = field_to_camera_pose_0;
       pose.pose_1 = field_to_camera_pose_1;
-
-      std::cout << "Pose: " << pose.pose_0.X().value() << ", "
-                << pose.pose_0.Y().value() << std::endl;
 
       result.multi_tag_pose = pose;
     }
   } else if (tags_used_ids.size() > 1) {
-    std::cout << "> 1 tag found" << std::endl;
-
     std::vector<cv::Mat> multi_rvec, multi_tvec;
     std::vector<double> errors;
-
-    std::cout << "Defining vectors and Mats" << std::endl;
 
     // Use a robust solver like SQPNP for a single, stable pose.
     cv::solvePnPGeneric(all_object_points, all_image_points, cameraMatrix,
                         distCoeffs, multi_rvec, multi_tvec, false,
                         cv::SOLVEPNP_SQPNP, cv::noArray(), cv::noArray(),
                         errors);
-
-    std::cout << "Solved PNP lol" << std::endl;
-
-    // The result of solvePnP is the pose of the field origin in the
+ // The result of solvePnP is the pose of the field origin in the
     // camera's frame.
     frc::Pose3d camera_to_field_pose =
         PoseUtils::openCvPoseToWpilib(multi_rvec[0], multi_tvec[0]);
-
-    std::cout << "transform cv to wpilib pose" << std::endl;
 
     // We need the inverse: the pose of the camera in the field's frame.
     auto camera_to_field = frc::Transform3d(camera_to_field_pose.Translation(),
@@ -164,15 +143,11 @@ void CameraPoseEstimator::estimatePose(
     auto field_to_camera_pose =
         frc::Pose3d(field_to_camera.Translation(), field_to_camera.Rotation());
 
-    std::cout << "Invert transform" << std::endl;
-
     CameraPoseObservation cam_pose;
     cam_pose.pose_0 = field_to_camera_pose;
     cam_pose.error_0 = errors[0];
     cam_pose.tag_ids = tags_used_ids;
 
     result.multi_tag_pose = cam_pose;
-
-    std::cout << "assigned" << std::endl;
   }
 }

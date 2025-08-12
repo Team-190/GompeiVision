@@ -79,14 +79,14 @@ Camera::~Camera() {
 // Captures a new frame from the camera
 bool Camera::getFrame(
     cv::Mat& frame,
-    std::chrono::time_point<std::chrono::steady_clock>& timestamp) {
+    std::chrono::time_point<std::chrono::system_clock>& timestamp) {
   if (!isConnected()) {
     return false;
   }
 
   // Atomically grab and retrieve the frame.
   if (m_capture.read(frame)) {
-    timestamp = std::chrono::steady_clock::now();
+    timestamp = std::chrono::system_clock::now();
     return true;  // Frame captured successfully.
   }
 
@@ -99,7 +99,7 @@ bool Camera::setExposure(const int value) {
   if (!isConnected()) return false;
   logInfo("Setting exposure to " + std::to_string(value));
   // cv::VideoCapture::set returns true on success
-  if (!m_capture.set(cv::CAP_PROP_EXPOSURE, static_cast<double>(value))) {
+  if (!m_capture.set(cv::CAP_PROP_EXPOSURE, value)) {
     logError("Failed to set exposure.");
     return false;
   }
@@ -110,7 +110,7 @@ bool Camera::setExposure(const int value) {
 bool Camera::setBrightness(const int value) {
   if (!isConnected()) return false;
   logInfo("Setting brightness to " + std::to_string(value));
-  if (!m_capture.set(cv::CAP_PROP_BRIGHTNESS, static_cast<double>(value))) {
+  if (!m_capture.set(cv::CAP_PROP_BRIGHTNESS, value)) {
     logError("Failed to set brightness.");
     return false;
   }

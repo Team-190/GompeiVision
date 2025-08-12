@@ -21,7 +21,8 @@ class Camera {
    * @param width The desired frame width for the camera stream.
    * @param height The desired frame height for the camera stream.
    */
-  Camera(const std::string& device_path, const std::string& hardwareID, int width, int height);
+  Camera(const std::string& device_path, const std::string& hardwareID,
+         int width, int height);
 
   /**
    * @brief Destructor that ensures the camera stream is properly released.
@@ -41,7 +42,7 @@ class Camera {
    * @return True if a new frame was successfully captured, false otherwise.
    */
   bool getFrame(cv::Mat& frame,
-                std::chrono::time_point<std::chrono::steady_clock>& timestamp);
+                std::chrono::time_point<std::chrono::system_clock>& timestamp);
 
   /**
    * @brief Sets the exposure value for the camera.

@@ -70,13 +70,10 @@ void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
     observation_data.push_back(distance);
   }
 
-  // Get timestamp in microseconds for NetworkTables
-  const int64_t timestamp_micros =
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          result.timestamp.time_since_epoch())
-          .count();
-
   // Publish all data
-  observations_pub_.Set(observation_data, timestamp_micros);
+  observations_pub_.Set(observation_data,
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            result.timestamp.time_since_epoch())
+                            .count());
   apriltags_fps_pub_.Set(result.fps);
 }

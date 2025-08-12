@@ -15,7 +15,7 @@ struct FiducialImageObservation {
   std::vector<int> tag_ids;
   // Corners stored as as vectors [x1, y1, x2, y2, x3, y3, x4, y4]
   std::vector<std::vector<double>> corners_pixels;
-  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+  std::chrono::time_point<std::chrono::system_clock> timestamp;
 };
 
 /**
@@ -66,7 +66,7 @@ struct TagAngleObservation {
 struct AprilTagResult {
   std::vector<int> tags;
   std::string camera_role;
-  std::chrono::time_point<std::chrono::steady_clock> timestamp;
+  std::chrono::time_point<std::chrono::system_clock> timestamp;
   int fps;
 
   // The final, high-quality multi-tag pose estimate.

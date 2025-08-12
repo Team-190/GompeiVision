@@ -88,8 +88,6 @@ void PipelineManager::startAll() {
             << std::endl;
 
   std::lock_guard<std::mutex> lock(m_pipelines_mutex);
-  std::map<pid_t, int> worker_pipes;
-  std::map<pid_t, std::string> pid_to_id;
   constexpr int stream_port_base = 5800;
 
   for (size_t i = 0; i < camera_symlinks.size(); ++i) {
@@ -137,93 +135,52 @@ void PipelineManager::startAll() {
       close(pipe_fds[1]);
       std::cout << "[Manager] Launched worker for " << camera_id << " with PID "
                 << pid << "." << std::endl;
-      m_child_pids[camera_id] = pid;
-      worker_pipes[pid] = pipe_fds[0];
-      pid_to_id[pid] = camera_id;
+      std::cout << "[Manager] Waiting for worker " << camera_id << " (PID " << pid << ") to become ready..." << std::endl;
+
+      fd_set read_fds;
+      FD_ZERO(&read_fds);
+      FD_SET(pipe_fds[0], &read_fds);
+
+      struct timeval timeout;
+      timeout.tv_sec = 10;
+      timeout.tv_usec = 0;
+
+      int retval = select(pipe_fds[0] + 1, &read_fds, nullptr, nullptr, &timeout);
+      
+      bool is_ready = false;
+      if (retval == -1) {
+          std::cerr << "[Manager] ERROR: select() failed while waiting for " << camera_id << ". Error: " << strerror(errno) << std::endl;
+      } else if (retval == 0) {
+          std::cerr << "[Manager] ERROR: Timed out waiting for worker " << camera_id << "." << std::endl;
+      } else {
+          if (FD_ISSET(pipe_fds[0], &read_fds)) {
+              char buf;
+              if (read(pipe_fds[0], &buf, 1) > 0 && buf == 'R') {
+                  std::cout << "[Manager] Worker for " << camera_id << " (PID " << pid << ") is ready." << std::endl;
+                  is_ready = true;
+              } else {
+                  std::cerr << "[Manager] ERROR: Failed to get ready signal from worker " << camera_id << "." << std::endl;
+              }
+          }
+      }
+
+      close(pipe_fds[0]);
+
+      if (is_ready) {
+          m_child_pids[camera_id] = pid;
+      } else {
+          std::cerr << "[Manager] ERROR: Worker " << camera_id << " (PID " << pid << ") failed to become ready. Killing process." << std::endl;
+          kill(pid, SIGKILL);
+          waitpid(pid, nullptr, 0);
+      }
     }
   }
 
   if (!m_child_pids.empty()) {
-    std::cout << "[Manager] Waiting for " << m_child_pids.size()
-              << " worker(s) to become ready..." << std::endl;
-
-    fd_set read_fds;
-    int max_fd = 0;
-    std::vector<pid_t> ready_pids;
-    bool timed_out = false;
-
-    struct timeval timeout;
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
-
-    while (ready_pids.size() < m_child_pids.size() && !timed_out) {
-      FD_ZERO(&read_fds);
-      max_fd = 0;
-      for (const auto& fd : worker_pipes | std::views::values) {
-        FD_SET(fd, &read_fds);
-        if (fd > max_fd) {
-          max_fd = fd;
-        }
-      }
-
-      int retval = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
-
-      if (retval == -1) {
-        std::cerr << "[Manager] ERROR: select() failed while waiting. Error: "
-                  << strerror(errno) << std::endl;
-        timed_out = true;
-      } else if (retval == 0) {
-        std::cerr << "[Manager] ERROR: Timed out waiting for worker(s)."
-                  << std::endl;
-        timed_out = true;
-      } else {
-        for (const auto& [pid, fd] : worker_pipes) {
-          if (FD_ISSET(fd, &read_fds)) {
-            char buf;
-            if (read(fd, &buf, 1) > 0 && buf == 'R') {
-              std::cout << "[Manager] Worker for " << pid_to_id[pid] << " (PID "
-                        << pid << ") is ready." << std::endl;
-              ready_pids.push_back(pid);
-            }
-          }
-        }
-      }
-    }
-
-    std::vector<std::string> dead_pipelines;
-    for (auto it = worker_pipes.begin(); it != worker_pipes.end();) {
-      bool is_ready = false;
-      for (pid_t ready_pid : ready_pids) {
-        if (it->first == ready_pid) {
-          is_ready = true;
-          break;
-        }
-      }
-      if (!is_ready) {
-        const auto& id = pid_to_id[it->first];
-        std::cerr << "[Manager] ERROR: Timed out waiting for worker " << id
-                  << " (PID " << it->first << "). Killing process."
-                  << std::endl;
-        kill(it->first, SIGKILL);
-        dead_pipelines.push_back(id);
-      }
-      close(it->second);
-      it = worker_pipes.erase(it);
-    }
-
-    for (const auto& id : dead_pipelines) {
-      m_child_pids.erase(id);
-    }
-
-    if (!m_child_pids.empty()) {
-      m_is_running = true;
-      m_heartbeat_thread = std::thread(&PipelineManager::heartbeat_loop, this);
-      std::cout << "[Manager] Launched " << m_child_pids.size()
-                << " pipeline processes." << std::endl;
-    } else {
-      std::cerr << "[Manager] ERROR: Failed to launch any pipeline processes."
-                << std::endl;
-    }
+    m_is_running = true;
+    m_heartbeat_thread = std::thread(&PipelineManager::heartbeat_loop, this);
+    std::cout << "[Manager] Launched " << m_child_pids.size()
+              << " pipeline processes." << std::endl;
   } else {
     std::cerr << "[Manager] ERROR: Failed to launch any pipeline processes."
               << std::endl;
