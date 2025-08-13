@@ -1,3 +1,4 @@
 .idea
-.editorconfig
-/vcpkg_installed
+/*build*/
+/debs/
+/apt-cache/
