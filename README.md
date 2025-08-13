@@ -58,6 +58,8 @@ We defined our hardware requirements to line up with our system requirements:
 * **Camera: ThriftyCam**
   *   This monochrome camera is global shutter, which is critical for capturing crisp, motion-blur-free images of AprilTags while the robot is in motion. This camera is also equipped for USB 3.0 data transmission
 
+FRC 190 doesn't standardize lens FOV because the FOV we need to run on the cameras really depends on the utility of the camera. The 80-90 degree lenses are good for global localization, because it has the high FOV, but for specific applications we may need a lower FOV (e.g. looking at a specific tag)
+
 ### Other Hardware
 While GompeiVision is not constrained to the selected hardware above, FRC 190 standardized hardware for the following reasons:
 *   **Consistency:** Ensures predictable performance and behavior across all our robots (competition, practice, and development).
