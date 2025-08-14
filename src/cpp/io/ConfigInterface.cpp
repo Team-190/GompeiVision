@@ -25,8 +25,6 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
       nt::NetworkTableInstance::GetDefault().GetTable("/cameras/" + hardwareID);
   m_configTable = nt::NetworkTableInstance::GetDefault().GetTable(
       "/cameras/" + hardwareID + "/config");
-  m_outputTable = nt::NetworkTableInstance::GetDefault().GetTable(
-      "/cameras/" + hardwareID + "/output");
 
   if (m_table) {
     std::cout << "Initializing subscribers" << std::endl;
@@ -57,18 +55,6 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID) {
         m_configTable->GetIntegerTopic(nt_keys::kHeight).Subscribe(0, options);
     m_compressedSub = m_configTable->GetBooleanTopic(nt_keys::kCompressed)
                           .Subscribe(false, options);
-    // --- Initialize Publishers ---
-    // Get publishers for each topic. These will be used to send data back
-    // when in setup mode.
-    m_cameraMatrixPub =
-        m_outputTable->GetDoubleArrayTopic(nt_keys::kCameraMatrix).Publish();
-    m_distCoeffsPub =
-        m_outputTable->GetDoubleArrayTopic(nt_keys::kDistCoeffs).Publish();
-    m_exposurePub =
-        m_outputTable->GetIntegerTopic(nt_keys::kExposure).Publish();
-    m_gainPub = m_outputTable->GetIntegerTopic(nt_keys::kGain).Publish();
-    m_widthPub = m_outputTable->GetIntegerTopic(nt_keys::kWidth).Publish();
-    m_heightPub = m_outputTable->GetIntegerTopic(nt_keys::kHeight).Publish();
 
     // Start the initialization thread
     m_initThread =
@@ -166,38 +152,6 @@ int ConfigInterface::getWidth() const { return m_width; }
 int ConfigInterface::getHeight() const { return m_height; }
 
 bool ConfigInterface::getCompressed() const { return m_compressed; }
-
-// --- Configuration Setters ---
-
-void ConfigInterface::setCameraMatrix(const cv::Mat& matrix) {
-  if (matrix.rows != 3 || matrix.cols != 3 || matrix.type() != CV_64F) {
-    logError("Invalid format for setCameraMatrix. Must be a 3x3 CV_64F Mat.");
-    return;
-  }
-  // Convert the cv::Mat to a std::vector<double> for publishing.
-  std::vector<double> data(matrix.begin<double>(), matrix.end<double>());
-  m_cameraMatrixPub.Set(data);
-}
-
-void ConfigInterface::setDistortionCoeffs(const cv::Mat& coeffs) {
-  if (coeffs.rows != 1 || coeffs.type() != CV_64F) {
-    logError(
-        "Invalid format for setDistortionCoeffs. Must be a 1xN CV_64F Mat.");
-    return;
-  }
-  std::vector<double> data(coeffs.begin<double>(), coeffs.end<double>());
-  m_distCoeffsPub.Set(data);
-}
-
-void ConfigInterface::setExposure(const int exposure) {
-  m_exposurePub.Set(exposure);
-}
-
-void ConfigInterface::setGain(const int gain) { m_gainPub.Set(gain); }
-
-void ConfigInterface::setWidth(const int width) { m_widthPub.Set(width); }
-
-void ConfigInterface::setHeight(const int height) { m_heightPub.Set(height); }
 
 // --- Logging Helpers ---
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <networktables/BooleanTopic.h>
 #include <networktables/DoubleArrayTopic.h>
 #include <networktables/IntegerTopic.h>
 
@@ -21,6 +22,12 @@ class OutputPublisher {
    * @param result The AprilTag result data for a single frame.
    */
   virtual void SendAprilTagResult(const AprilTagResult& result) = 0;
+
+  /**
+   * @brief Sends the current camera connection status.
+   * @param isConnected True if the camera is connected, false otherwise.
+   */
+  virtual void sendConnectionStatus(bool isConnected) = 0;
 };
 
 /**
@@ -31,8 +38,10 @@ class NTOutputPublisher final : public OutputPublisher {
  public:
   explicit NTOutputPublisher(std::string_view hardware_id);
   void SendAprilTagResult(const AprilTagResult& result) override;
+  void sendConnectionStatus(bool isConnected) override;
 
  private:
   nt::DoubleArrayPublisher observations_pub_;
   nt::IntegerPublisher apriltags_fps_pub_;
+  nt::BooleanPublisher connection_status_pub_;
 };

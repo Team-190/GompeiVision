@@ -40,10 +40,11 @@ Pipeline::Pipeline(const std::string& device_path,
   m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
                                       m_active_height);
 
-  if (!m_camera || !m_camera->isConnected()) {
-    std::cerr << "[" << m_role << "] ERROR: Failed to create or connect Camera."
+  // Set initial camera connection status
+
+  if (!m_camera->isConnected()) {
+    std::cerr << "[" << m_role << "] WARNING: Camera failed to connect on startup."
               << std::endl;
-    return;
   }
 
   m_field = FieldInterface();
@@ -228,59 +229,81 @@ void Pipeline::processing_loop() {
   std::chrono::time_point<std::chrono::system_clock> timestamp;
 
   while (m_is_running) {
-    constexpr double alpha = 0.05;
+    bool frame_was_captured = false;
 
-    if (!m_camera || !m_camera->getFrame(frame.frame, timestamp)) {
-      continue;
+    if (m_camera) {
+      // The definitive test for a camera connection is whether we can get a frame.
+      if (m_camera->getFrame(frame.frame, timestamp)) {
+        frame_was_captured = true;
+      } else {
+        // If getting a frame fails, the camera is considered disconnected.
+        // Attempt to reconnect for the next cycle.
+        m_camera->attemptReconnect();
+      }
     }
 
-    if (m_config_interface->isSetupMode() && m_cv_source) {
-      m_cv_source->PutFrame(frame.frame);
-    }
+    // Update the shared connection status flag once per loop iteration.
+    if (frame_was_captured) {
+      // --- Frame processing continues only if a frame was captured ---
+      constexpr double alpha = 0.05;
 
-    FiducialImageObservation frame_observation;
-    frame_observation.timestamp = timestamp;
+      if (m_config_interface->isSetupMode() && m_cv_source) {
+        m_cv_source->PutFrame(frame.frame);
+      }
 
-    m_AprilTagDetector.detect(frame, frame_observation);
+      FiducialImageObservation frame_observation;
+      frame_observation.timestamp = timestamp;
 
-    auto current_time = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed_seconds = current_time - last_time;
-    last_time = current_time;
-    const double instant_fps = 1.0 / elapsed_seconds.count();
-    smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+      m_AprilTagDetector.detect(frame, frame_observation);
 
-    if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
-      AprilTagResult result;
-      result.timestamp = frame_observation.timestamp;
-      result.camera_role = m_role;
-      constexpr double tag_size_m = 0.1651;
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-      cv::Mat cameraMatrix = m_camera_matrix.clone();
-      cv::Mat distCoeffs = m_dist_coeffs.clone();
+      if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
+        AprilTagResult result;
+        result.timestamp = frame_observation.timestamp;
+        result.camera_role = m_role;
+        constexpr double tag_size_m = 0.1651;
 
-      // SingleTagPoseEstimator::estimatePose(
-      //     frame_observation, result, cameraMatrix, distCoeffs, tag_size_m);
+        cv::Mat cameraMatrix = m_camera_matrix.clone();
+        cv::Mat distCoeffs = m_dist_coeffs.clone();
 
-      CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
-                                        distCoeffs, tag_size_m,
-                                        m_field.getMap());
+        CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
+                                          distCoeffs, tag_size_m,
+                                          m_field.getMap());
 
-      TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
-                                    distCoeffs, tag_size_m);
+        TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
+                                      distCoeffs, tag_size_m);
 
-      result.fps = smoothed_fps;
-      m_estimated_poses.push(result);
+        result.fps = smoothed_fps;
+        m_estimated_poses.push(result);
+      }
+    } else {
+      // If no frame was captured, wait a moment before the next attempt.
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
 }
 
 void Pipeline::networktables_loop() {
   while (m_is_running) {
-    AprilTagResult result;
-    if (!m_estimated_poses.waitAndPop(result)) {
-      continue;
+    // Always publish the latest known connection status.
+    if (m_output_publisher) {
+      m_output_publisher->sendConnectionStatus(m_camera->isConnected());
     }
 
+    AprilTagResult result;
+    // Use a timed wait so that we still publish connection status regularly
+    // even if no new AprilTag results are available.
+    if (!m_estimated_poses.waitAndPopWithTimeout(result, std::chrono::milliseconds(50))) {
+      continue; // No new data, but we’ll loop again soon.
+    }
+
+
+    // If we get a result, publish it.
     if (m_output_publisher) {
       m_output_publisher->SendAprilTagResult(result);
     }

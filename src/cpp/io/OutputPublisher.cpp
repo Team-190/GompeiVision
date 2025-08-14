@@ -37,6 +37,7 @@ NTOutputPublisher::NTOutputPublisher(std::string_view hardware_id) {
   observations_pub_ =
       table->GetDoubleArrayTopic("observations").Publish(options);
   apriltags_fps_pub_ = table->GetIntegerTopic("fps_apriltags").Publish();
+  connection_status_pub_ = table->GetBooleanTopic("connected").Publish();
 }
 
 void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
@@ -76,4 +77,8 @@ void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
                             result.timestamp.time_since_epoch())
                             .count());
   apriltags_fps_pub_.Set(result.fps);
+}
+
+void NTOutputPublisher::sendConnectionStatus(const bool isConnected) {
+  connection_status_pub_.Set(isConnected);
 }

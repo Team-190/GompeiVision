@@ -1,5 +1,5 @@
 # GompeiVision
-![logo](logo.png)
+![logo](logo2.png)
 
 GompeiVision is the in-house, custom vision solution developed by FRC Team 190, Gompei and the H.E.R.D.
 

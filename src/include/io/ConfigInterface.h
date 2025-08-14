@@ -81,46 +81,7 @@ class ConfigInterface {
   int getHeight() const;
   bool getCompressed() const;
 
-  // --- Configuration Setters (only publish if in setup mode) ---
-
  private:
-  /**
-   * @brief Publishes a new camera matrix to NetworkTables if in setup mode.
-   * @param matrix The 3x3 cv::Mat (CV_64F) to publish.
-   */
-  void setCameraMatrix(const cv::Mat& matrix);
-
-  /**
-   * @brief Publishes new distortion coefficients to NetworkTables if in setup
-   * mode.
-   * @param coeffs The 1xN cv::Mat (CV_64F) of coefficients to publish.
-   */
-  void setDistortionCoeffs(const cv::Mat& coeffs);
-
-  /**
-   * @brief Publishes a new exposure value to NetworkTables if in setup mode.
-   * @param exposure The new integer exposure value.
-   */
-  void setExposure(int exposure);
-
-  /**
-   * @brief Publishes a new gain value to NetworkTables if in setup mode.
-   * @param gain The new integer gain value.
-   */
-  void setGain(int gain);
-
-  /**
-   * @brief Publishes a new frame width to NetworkTables if in setup mode.
-   * @param width The new integer width.
-   */
-  void setWidth(int width);
-
-  /**
-   * @brief Publishes a new frame height to NetworkTables if in setup mode.
-   * @param height The new integer height.
-   */
-  void setHeight(int height);
-
   /**
    * @brief The target function for the initialization thread. Polls for
    * initial values.
@@ -142,14 +103,6 @@ class ConfigInterface {
   nt::IntegerSubscriber m_widthSub;
   nt::IntegerSubscriber m_heightSub;
   nt::BooleanSubscriber m_compressedSub;
-
-  // Publishers for each configuration parameter
-  nt::DoubleArrayPublisher m_cameraMatrixPub;
-  nt::DoubleArrayPublisher m_distCoeffsPub;
-  nt::IntegerPublisher m_exposurePub;
-  nt::IntegerPublisher m_gainPub;
-  nt::IntegerPublisher m_widthPub;
-  nt::IntegerPublisher m_heightPub;
 
   // --- In-Memory Configuration Cache ---
   // These members hold the last valid values received from NetworkTables.

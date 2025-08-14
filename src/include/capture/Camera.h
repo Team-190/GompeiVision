@@ -10,7 +10,8 @@
  *
  * This class provides a high-level interface for a camera device.
  * It uses OpenCV's VideoCapture to open a stream, capture frames, and
- * manage camera settings like exposure and brightness.
+ * manage camera settings like exposure and brightness. It also includes
+ * logic to automatically reconnect if the camera stream is lost.
  */
 class Camera {
  public:
@@ -36,7 +37,8 @@ class Camera {
   Camera& operator=(Camera&&) = delete;
 
   /**
-   * @brief Captures the latest frame from the camera if one is available.
+   * @brief Captures the latest frame from the camera. If disconnected, it
+   *        will attempt to reconnect.
    * @param[out] frame An OpenCV Mat object to store the captured frame.
    * @param[out] timestamp A time_point to store the capture timestamp.
    * @return True if a new frame was successfully captured, false otherwise.
@@ -59,18 +61,16 @@ class Camera {
   bool setBrightness(int value);
 
   /**
-   * @brief Sets the resolution for the camera stream.
-   * @param width The desired frame width.
-   * @param height The desired frame height.
-   * @return True on success, false on failure.
-   */
-  bool setResolution(int width, int height);
-
-  /**
    * @brief Checks if the camera is currently connected and streaming.
    * @return True if the camera stream is open, false otherwise.
    */
   bool isConnected() const;
+
+  /**
+   * @brief Attempts to release and re-open the camera stream.
+   * @return True if the camera was successfully reconnected, false otherwise.
+   */
+  bool attemptReconnect();
 
  private:
   /**
@@ -85,6 +85,12 @@ class Camera {
    */
   void logError(const std::string& message) const;
 
+  /**
+   * @brief Applies all stored camera configurations (resolution, exposure, etc).
+   *        Called on initial setup and after a reconnect.
+   */
+  void configureCamera();
+
   // Member Variables
   std::string m_hardwareID;
   std::string m_device_path;
@@ -94,6 +100,13 @@ class Camera {
   int m_height = 0;
 
   // The core OpenCV camera object.
-  // This object handles all interaction with the physical camera device.
   cv::VideoCapture m_capture;
+  bool m_is_connected = true;
+
+
+  // Store requested settings to re-apply on reconnect
+  int m_req_width;
+  int m_req_height;
+  int m_last_exposure = -1;    // Using -1 to indicate not set
+  int m_last_brightness = -1;  // Using -1 to indicate not set
 };
