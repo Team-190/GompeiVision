@@ -4,6 +4,8 @@
 #include <httplib.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <nlohmann/json.hpp>
@@ -17,11 +19,12 @@
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
+#include <filesystem>
 
 Pipeline::Pipeline(const std::string& device_path,
-                   const std::string& hardware_id, const int stream_port)
+                   const std::string& hardware_id, const int stream_port, nt::NetworkTableInstance& nt_inst, const bool testMode)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
-  m_config_interface = std::make_unique<ConfigInterface>(hardware_id);
+  m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
   m_config_interface->waitForInitialization();
 
@@ -47,11 +50,13 @@ Pipeline::Pipeline(const std::string& device_path,
               << std::endl;
   }
 
-  m_field = FieldInterface();
-  // m_camera->setExposure(m_active_exposure);
-  // m_camera->setBrightness(m_active_gain);
+  if (!FieldInterface::isInitialized()) {
+    FieldInterface::initialize(nt_inst);
+  }
 
-  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id);
+  while (!FieldInterface::update())
+
+  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
   m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
       *m_config_interface, m_camera_matrix, m_dist_coeffs);
@@ -72,10 +77,55 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
+
+std::cout << "Test Mode Status: " << testMode << std::endl;
+
+  if (testMode) {
+      const std::string path = std::filesystem::current_path().string() + "/GVTest.csv";
+      std::cout << path << std::endl;
+      const std::ifstream f(path.c_str());
+      const bool file_exists = f.good();
+
+      m_csv_file.open(path, std::ios_base::app);
+      if (m_csv_file.is_open()) {
+        if (!file_exists) {
+          m_csv_file << "camera_role,width,height,format,exposure,gain,camera_matrix00,camera_matrix01,camera_matrix02,camera_matrix10,camera_matrix11,camera_matrix12,camera_matrix,camera_matrix20,camera_matrix21,camera_matrix22,dist_coeffs0,dist_coeffs1,dist_coeffs2,dist_coeffs3,dist_coeffs4\n";
+        }
+        m_csv_file << m_role << ","
+        << m_active_width << ","
+        << m_active_height << ","
+        << m_camera->getFormat()<< ","
+        << m_active_exposure << ","
+        << m_active_gain << ","
+        << m_camera_matrix.at<double>(0, 0) << ","
+        << m_camera_matrix.at<double>(0, 1) << ","
+        << m_camera_matrix.at<double>(0, 2) << ","
+        << m_camera_matrix.at<double>(1, 0) << ","
+        << m_camera_matrix.at<double>(1, 1) << ","
+        << m_camera_matrix.at<double>(1, 2) << ","
+        << m_camera_matrix.at<double>(2, 0) << ","
+        << m_camera_matrix.at<double>(2, 1) << ","
+        << m_camera_matrix.at<double>(2, 2) << ","
+        << m_dist_coeffs.at<double>(0) << ","
+        << m_dist_coeffs.at<double>(1) << ","
+        << m_dist_coeffs.at<double>(2) << ","
+        << m_dist_coeffs.at<double>(3) << ","
+        << m_dist_coeffs.at<double>(4) << ","
+        "\n";
+        std::cout << "[" << m_role << "] Opened GVTest.csv in home directory." << std::endl;
+      } else {
+        std::cerr << "[" << m_role << "] ERROR: Failed to open GVTest.csv in home directory." << std::endl;
+      }
+
+    m_csv_file.close();
+  }
 }
 
 Pipeline::~Pipeline() {
   std::cout << "[" << m_role << "] Shutting down pipeline..." << std::endl;
+  if (m_csv_file.is_open()) {
+    m_csv_file.close();
+  }
   stop();
 }
 
@@ -273,7 +323,7 @@ void Pipeline::processing_loop() {
 
         CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
                                           distCoeffs, tag_size_m,
-                                          m_field.getMap());
+                                          FieldInterface::getMap());
 
         TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                       distCoeffs, tag_size_m);

@@ -20,10 +20,11 @@ constexpr auto kHeight = "height";
 constexpr auto kCompressed = "compressed";
 }  // namespace nt_keys
 
-ConfigInterface::ConfigInterface(const std::string& hardwareID) {
+ConfigInterface::ConfigInterface(const std::string& hardwareID,
+                                 const nt::NetworkTableInstance& nt_inst) {
   m_table =
-      nt::NetworkTableInstance::GetDefault().GetTable("/cameras/" + hardwareID);
-  m_configTable = nt::NetworkTableInstance::GetDefault().GetTable(
+      nt_inst.GetTable("/cameras/" + hardwareID);
+  m_configTable = nt_inst.GetTable(
       "/cameras/" + hardwareID + "/config");
 
   if (m_table) {

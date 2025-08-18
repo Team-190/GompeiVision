@@ -4,6 +4,7 @@
 #include <libudev.h>
 
 #include <atomic>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -27,7 +28,7 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const std::string& device_path, const std::string& hardware_id,
-           const int stream_port);
+           const int stream_port, nt::NetworkTableInstance& nt_inst, bool testMode);
   ~Pipeline();
 
   void start();
@@ -41,8 +42,6 @@ class Pipeline {
   void networktables_loop();
 
   std::atomic<bool> m_is_running{false};
-
-  FieldInterface m_field;
 
   std::string m_hardware_id;
   std::string m_role;
@@ -76,4 +75,5 @@ class Pipeline {
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;
   std::unique_ptr<OutputPublisher> m_output_publisher;
+  std::ofstream m_csv_file;
 };

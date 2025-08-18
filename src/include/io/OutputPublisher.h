@@ -36,7 +36,7 @@ class OutputPublisher {
  */
 class NTOutputPublisher final : public OutputPublisher {
  public:
-  explicit NTOutputPublisher(std::string_view hardware_id);
+  explicit NTOutputPublisher(const std::string_view hardware_id, const nt::NetworkTableInstance& nt_inst);
   void SendAprilTagResult(const AprilTagResult& result) override;
   void sendConnectionStatus(bool isConnected) override;
 

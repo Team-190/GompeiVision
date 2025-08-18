@@ -1,18 +1,22 @@
 #pragma once
 #include <frc/geometry/Pose3d.h>
+#include <networktables/NetworkTableInstance.h>
+#include <networktables/DoubleArrayTopic.h>
 
-#include "ConfigInterface.h"
+#include <map>
 
 class FieldInterface {
- public:
-  FieldInterface();
-  ~FieldInterface();
+public:
+  // All-static interface
+  static void initialize(const nt::NetworkTableInstance& nt_inst);
+  static bool update();
+  static std::map<int, frc::Pose3d> getMap();
+  static bool isInitialized();
 
-  void update();
+  static bool m_initialized;
 
-  std::map<int, frc::Pose3d> getMap();
-
- private:
-  int numTags;
-  std::map<int, frc::Pose3d> tagMap;
+private:
+  inline static int numTags = 0;
+  inline static std::map<int, frc::Pose3d> tagMap = {};
+  inline static std::map<int, nt::DoubleArraySubscriber> subscribers = {};
 };

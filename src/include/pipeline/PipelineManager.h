@@ -27,7 +27,7 @@ public:
   PipelineManager(const PipelineManager&) = delete;
   void operator=(const PipelineManager&) = delete;
 
-  void startAll();
+  void startAll(bool testMode);
   void stopAll();
 
 private:

@@ -26,8 +26,8 @@ void AppendPoseData(std::vector<double>& data, const frc::Pose3d& pose) {
 }
 }  // namespace
 
-NTOutputPublisher::NTOutputPublisher(std::string_view hardware_id) {
-  const auto nt_inst = nt::NetworkTableInstance::GetDefault();
+NTOutputPublisher::NTOutputPublisher(const std::string_view hardware_id,
+                                     const nt::NetworkTableInstance& nt_inst) {
   const auto table =
       nt_inst.GetTable("/cameras/" + std::string(hardware_id) + "/output");
 

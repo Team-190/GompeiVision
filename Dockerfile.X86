@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y \
     libavutil-dev \
     libswscale-dev \
     libzstd-dev \
+    libusb-dev \
     file \
     && rm -rf /var/lib/apt/lists/*
 
@@ -156,8 +157,6 @@ RUN git clone https://github.com/yhirose/cpp-httplib.git && \
           .. && \
     make -j$(nproc) && \
     make install
-
-RUN apt-get update && apt-get install -y file
 
 # --- Final Cleanup ---
 # Clean up the source directories to reduce the final image size

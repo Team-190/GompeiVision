@@ -72,6 +72,12 @@ class Camera {
    */
   bool attemptReconnect();
 
+  /**
+   * @brief Gets the pixel format of the camera stream.
+   * @return A string representing the fourcc code of the pixel format.
+   */
+  std::string getFormat();
+
  private:
   /**
    * @brief Private helper to log informational messages.

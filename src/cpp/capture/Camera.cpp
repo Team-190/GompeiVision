@@ -78,6 +78,22 @@ bool Camera::setBrightness(const int value) {
 // Checks if the camera is open and ready for use
 bool Camera::isConnected() const { return m_capture.isOpened(); }
 
+std::string Camera::getFormat() {
+    if (!isConnected()) {
+        return "";
+    }
+    int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
+    if (fourcc == 0) {
+        return "";
+    }
+    std::string formatStr;
+    formatStr += (fourcc & 0XFF);
+    formatStr += ((fourcc >> 8) & 0XFF);
+    formatStr += ((fourcc >> 16) & 0XFF);
+    formatStr += ((fourcc >> 24) & 0XFF);
+    return formatStr;
+}
+
 // Helper for logging informational messages
 void Camera::logInfo(const std::string& message) const {
   std::cout << "[INFO] Camera (" << m_hardwareID << "): " << message

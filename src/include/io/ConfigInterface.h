@@ -36,7 +36,8 @@ class ConfigInterface {
    * On construction, it establishes connections to the relevant NetworkTables
    * topics and performs an initial load of all configuration values.
    */
-  explicit ConfigInterface(const std::string&);
+  explicit ConfigInterface(const std::string&,
+                           const nt::NetworkTableInstance& nt_inst);
   ~ConfigInterface();
 
   /**
