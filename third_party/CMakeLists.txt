@@ -17,17 +17,12 @@ find_package(fieldimages REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(udev REQUIRED libudev)
 pkg_check_modules(zstd REQUIRED libzstd)
-pkg_check_modules(libusb REQUIRED libusb)
 find_package(httplib REQUIRED)
 
 # Manually create an imported target for udev so we can use it like the others.
 add_library(udev::udev INTERFACE IMPORTED)
 target_include_directories(udev::udev INTERFACE ${udev_INCLUDE_DIRS})
 target_link_libraries(udev::udev INTERFACE ${udev_LIBRARIES})
-
-add_library(libusb::libusb INTERFACE IMPORTED)
-target_include_directories(libusb::libusb INTERFACE ${libusb-1.0_INCLUDE_DIRS})
-target_link_libraries(libusb::libusb INTERFACE ${libusb-1.0_LIBRARIES})
 
 add_library(zstd::libzstd INTERFACE IMPORTED)
 target_include_directories(zstd::libzstd INTERFACE ${ZSTD_INCLUDE_DIRS})
@@ -57,7 +52,6 @@ target_include_directories(third_party_libs INTERFACE
         ${wpimath_INCLUDE_DIRS}
         ${httplib_INCLUDE_DIRS}
         ${udev_INCLUDE_DIRS}
-        ${libusb-1.0_INCLUDE_DIRS}
         /usr/local/include
         /usr/local/include/fieldImages
         ${openpnpcapture_INCLUDE_DIRS}
@@ -76,7 +70,6 @@ target_link_libraries(third_party_libs INTERFACE
         fieldImages
         httplib::httplib
         udev::udev
-        libusb::libusb
         zstd::libzstd
         OpenPnP::Capture
 )
