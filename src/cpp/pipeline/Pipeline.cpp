@@ -50,6 +50,9 @@ Pipeline::Pipeline(const std::string& device_path,
               << std::endl;
   }
 
+  m_camera->setExposure(m_active_exposure);
+  m_camera->setBrightness(m_active_gain);
+
   if (!FieldInterface::isInitialized()) {
     FieldInterface::initialize(nt_inst);
   }
