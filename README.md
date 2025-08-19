@@ -45,7 +45,7 @@ Yet again, inspired by FRC 6328's [computer vision conference](https://www.youtu
 ## Hardware Overview
 
 We defined our hardware requirements to line up with our system requirements:
-* Camera and coprocessor must operate at >50 FPS to not bottleneck the robot's auto alignment (RoboRIO runs at 50 Hz)
+* Camera and coprocessor must operate at >50 FPS to maintain a performance gain over out current COTS vision system
 * Camera must have >=1280x720 resolution, this is FRC 190's previous COTS vision system resolution
 * Camera must transmit uncompressed (YUYV) frames over USB 3 to avoid MJPEG compression artifacts and unnecessary performance overhead
 
