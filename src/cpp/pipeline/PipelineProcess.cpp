@@ -25,7 +25,7 @@ void signal_handler(const int signum) {
 }
 
 int main(const int argc, char* argv[]) {
-  if (argc < 6) {
+  if (argc < 5) {
     std::cerr << "Usage: " << argv[0]
               << " <device_path> <hardware_id> <stream_port> <pipe_write_fd> <test_mode>"
               << std::endl;
@@ -38,7 +38,6 @@ int main(const int argc, char* argv[]) {
     const std::string hardware_id = argv[2];
     const int stream_port = std::stoi(argv[3]);
     pipe_write_fd = std::stoi(argv[4]);
-    const bool testMode = std::stoi(argv[5]);
 
 
     // Each worker process must initialize its own NT client.
@@ -54,7 +53,7 @@ int main(const int argc, char* argv[]) {
               << " (path " << device_path << ")" << std::endl;
 
     g_pipeline =
-        std::make_unique<Pipeline>(device_path, hardware_id, stream_port, nt_inst, testMode);
+        std::make_unique<Pipeline>(device_path, hardware_id, stream_port, nt_inst);
     g_pipeline->start();
 
     // --- Signal readiness to manager by writing to the pipe ---

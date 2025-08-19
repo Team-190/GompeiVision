@@ -47,7 +47,7 @@ PipelineManager::~PipelineManager() {
   stopAll();
 }
 
-void PipelineManager::startAll(bool testMode) {
+void PipelineManager::startAll() {
   if (m_is_running) {
     std::cout << "[Manager] Pipelines are already running." << std::endl;
     return;
@@ -124,11 +124,10 @@ void PipelineManager::startAll(bool testMode) {
       const std::string stream_port_str = std::to_string(stream_port);
       const std::string pipe_fd_str = std::to_string(pipe_fds[1]);
       const std::string worker_name = "GompeiVisionProcess";
-      const std::string test_mode = std::to_string(testMode);
 
       const char* args[] = {worker_name.c_str(), dev_path_str.c_str(),
                             camera_id.c_str(),   stream_port_str.c_str(),
-                            pipe_fd_str.c_str(), test_mode.c_str(), nullptr};
+                            pipe_fd_str.c_str(), nullptr};
 
       execv(worker_executable_str.c_str(), const_cast<char* const*>(args));
       std::cerr << "[Worker] FATAL: execv failed for " << worker_executable_str
@@ -177,11 +176,6 @@ void PipelineManager::startAll(bool testMode) {
           waitpid(pid, nullptr, 0);
       }
     }
-  }
-
-  if (testMode && m_child_pids.size() == camera_symlinks.size() && !camera_symlinks.empty()) {
-    std::cout << "[Manager] All pipelines successfully started. Rebooting system." << std::endl;
-    system("reboot now");
   }
 
   if (!m_child_pids.empty()) {

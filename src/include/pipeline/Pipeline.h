@@ -28,7 +28,7 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const std::string& device_path, const std::string& hardware_id,
-           const int stream_port, nt::NetworkTableInstance& nt_inst, bool testMode);
+           const int stream_port, nt::NetworkTableInstance& nt_inst);
   ~Pipeline();
 
   void start();
@@ -75,5 +75,4 @@ class Pipeline {
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;
   std::unique_ptr<OutputPublisher> m_output_publisher;
-  std::ofstream m_csv_file;
 };
