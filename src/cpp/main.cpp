@@ -13,6 +13,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <libusb>
 
 #include "pipeline/PipelineManager.h"
 
