@@ -14,10 +14,14 @@
 #include "capture/Camera.h"
 #include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
+#include "detector/ObjectDetector.h"
 #include "io/ConfigInterface.h"
 #include "io/FieldInterface.h"
 #include "util/QueuedFiducialData.h"
+#include "util/QueuedObjectData.h"  
 #include "util/ThreadSafeQueue.h"
+#include "util/QueuedFrame.h"
+
 
 struct UdevContextDeleter {
   void operator()(struct udev* ctx) const {
@@ -40,6 +44,7 @@ class Pipeline {
  private:
   void processing_loop();
   void networktables_loop();
+  void object_detection_loop();
 
   std::atomic<bool> m_is_running{false};
 
@@ -64,13 +69,17 @@ class Pipeline {
 
   // --- Detectors ---
   FiducialDetector m_AprilTagDetector;
+  std::unique_ptr<ObjectDetector> m_ObjectDetector;
 
   // --- Pipeline Data Flow ---
   ThreadSafeQueue<AprilTagResult> m_estimated_poses;
+  ThreadSafeQueue<ObjectDetectResult> m_object_detections;
+  ThreadSafeQueue<QueuedFrame> m_frames_for_object_detection;
 
   // Threads & Control
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
+  std::thread m_object_detection_thread;
 
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;

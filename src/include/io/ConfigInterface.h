@@ -14,65 +14,22 @@
 #include <string>
 #include <thread>
 
-/**
- * @class ConfigInterface
- * @brief Manages loading and providing configuration parameters from
- * NetworkTables.
- *
- * This class subscribes to a specific NetworkTables table (e.g.,
- * "GompeiVision") to dynamically load and update camera and vision processing
- * settings. It provides a centralized, in-memory cache of these settings for
- * other parts of the application to use.
- *
- * When the "setup_mode" topic is true, this class can also be used to publish
- * new values for the settings, allowing for live tuning.
- */
 class ConfigInterface {
  public:
-  /**
-   * @brief Constructs the ConfigInterface and initializes NetworkTables
-   * subscribers and publishers.
-   *
-   * On construction, it establishes connections to the relevant NetworkTables
-   * topics and performs an initial load of all configuration values.
-   */
   explicit ConfigInterface(const std::string&,
                            const nt::NetworkTableInstance& nt_inst);
   ~ConfigInterface();
 
-  /**
-   * @brief Blocks until the initial configuration values have been received
-   * from NetworkTables.
-   */
   void waitForInitialization();
-
-  /**
-   * @brief Fetches the latest values from all NetworkTables topics.
-   *
-   * This method should be called periodically (e.g., once per main loop
-   * iteration) to ensure the configuration remains up-to-date with any changes
-   * published by a client, such as a dashboard or the robot code.
-   */
   void update();
 
   // --- State Getters ---
-
-  /**
-   * @brief Checks if the system is currently in setup mode.
-   * @return True if setup mode is active, false otherwise.
-   */
   bool isSetupMode() const;
 
   // --- State Setters ---
-
-  /**
-   * @brief sets the setup mode
-   * @param setupMode The state of the setup mode
-   */
   void setSetupMode(bool setupMode);
 
   // --- Configuration Getters ---
-
   std::string getRole() const;
   cv::Mat getCameraMatrix() const;
   cv::Mat getDistortionCoeffs() const;
@@ -81,6 +38,11 @@ class ConfigInterface {
   int getWidth() const;
   int getHeight() const;
   bool getCompressed() const;
+
+  // --- model paths ---
+  std::string getModelPath() const;
+  std::string getConfigPath() const;
+  std::string getClassNamesPath() const;
 
  private:
   /**
@@ -105,6 +67,12 @@ class ConfigInterface {
   nt::IntegerSubscriber m_heightSub;
   nt::BooleanSubscriber m_compressedSub;
 
+  // --- model paths ---
+  nt::StringSubscriber m_modelPathSub;
+  nt::StringSubscriber m_configPathSub;
+  nt::StringSubscriber m_classNamesPathSub;
+
+
   // --- In-Memory Configuration Cache ---
   // These members hold the last valid values received from NetworkTables.
   bool m_setupMode;
@@ -116,6 +84,12 @@ class ConfigInterface {
   int m_width;
   int m_height;
   bool m_compressed;
+
+  // --- model paths ---
+  std::string m_modelPath;
+  std::string m_configPath;
+  std::string m_classNamesPath;
+
 
   // --- Threading and Synchronization for Initialization ---
   std::thread m_initThread;

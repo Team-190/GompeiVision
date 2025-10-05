@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -14,15 +15,17 @@
 #include <thread>
 
 #include "capture/Camera.h"
+#include "detector/ObjectDetector.h"
 #include "estimator/CameraPoseEstimator.h"
+#include "estimator/ObjectEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
-#include <filesystem>
 
 Pipeline::Pipeline(const std::string& device_path,
-                   const std::string& hardware_id, const int stream_port, nt::NetworkTableInstance& nt_inst)
+                   const std::string& hardware_id, const int stream_port,
+                   nt::NetworkTableInstance& nt_inst)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
@@ -40,14 +43,26 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
+  // --- Initialize Object Detector ---
+  // Define paths for your new ONNX model and names file
+  const std::string modelPath = "/path/to/your/yolov8n.onnx";
+  const std::string classNamesPath = "/path/to/your/coco.names";
+
+  if (!modelPath.empty() && !classNamesPath.empty()) {
+    std::cout << "[" << m_role << "] Loading object detection model..."
+              << std::endl;
+    m_ObjectDetector =
+        std::make_unique<ObjectDetector>(modelPath, classNamesPath);
+  }
+
   m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
                                       m_active_height);
 
   // Set initial camera connection status
 
   if (!m_camera->isConnected()) {
-    std::cerr << "[" << m_role << "] WARNING: Camera failed to connect on startup."
-              << std::endl;
+    std::cerr << "[" << m_role
+              << "] WARNING: Camera failed to connect on startup." << std::endl;
   }
 
   m_camera->setExposure(m_active_exposure);
@@ -57,9 +72,10 @@ Pipeline::Pipeline(const std::string& device_path,
     FieldInterface::initialize(nt_inst);
   }
 
-  while (!FieldInterface::update())
+  while (!FieldInterface::update());
 
-  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
+  m_output_publisher =
+      std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
   m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
       *m_config_interface, m_camera_matrix, m_dist_coeffs);
@@ -80,7 +96,6 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
-
 }
 
 Pipeline::~Pipeline() {
@@ -93,6 +108,8 @@ void Pipeline::start() {
   m_is_running = true;
   m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
+  m_object_detection_thread =
+      std::thread(&Pipeline::object_detection_loop, this);
 }
 
 void Pipeline::during() {
@@ -221,9 +238,12 @@ void Pipeline::stop() {
   m_is_running = false;
 
   m_estimated_poses.shutdown();
+  m_object_detections.shutdown();
+  m_frames_for_object_detection.shutdown();
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
+  if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
@@ -241,8 +261,11 @@ void Pipeline::processing_loop() {
     bool frame_was_captured = false;
 
     if (m_camera) {
-      // The definitive test for a camera connection is whether we can get a frame.
+      // The definitive test for a camera connection is whether we can get a
+      // frame.
       if (m_camera->getFrame(frame.frame, timestamp)) {
+        frame.cameraRole = m_role;
+        frame.timestamp = timestamp;
         frame_was_captured = true;
       } else {
         // If getting a frame fails, the camera is considered disconnected.
@@ -260,6 +283,7 @@ void Pipeline::processing_loop() {
         m_cv_source->PutFrame(frame.frame);
       }
 
+      // --- AprilTag Processing ---
       FiducialImageObservation frame_observation;
       frame_observation.timestamp = timestamp;
 
@@ -272,24 +296,30 @@ void Pipeline::processing_loop() {
       smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
       if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
-        AprilTagResult result;
-        result.timestamp = frame_observation.timestamp;
-        result.camera_role = m_role;
+        AprilTagResult apriltag_result;
+        apriltag_result.timestamp = frame_observation.timestamp;
+        apriltag_result.camera_role = m_role;
         constexpr double tag_size_m = 0.1651;
 
         cv::Mat cameraMatrix = m_camera_matrix.clone();
         cv::Mat distCoeffs = m_dist_coeffs.clone();
 
-        CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
-                                          distCoeffs, tag_size_m,
+        CameraPoseEstimator::estimatePose(frame_observation, apriltag_result,
+                                          cameraMatrix, distCoeffs, tag_size_m,
                                           FieldInterface::getMap());
 
-        TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
-                                      distCoeffs, tag_size_m);
+        TagAngleCalculator::calculate(frame_observation, apriltag_result,
+                                      cameraMatrix, distCoeffs, tag_size_m);
 
-        result.fps = smoothed_fps;
-        m_estimated_poses.push(result);
+        apriltag_result.fps = smoothed_fps;
+        m_estimated_poses.push(apriltag_result);
       }
+
+      // --- Object Detection Processing (Push to NEW Thread) ---
+      if (m_ObjectDetector) {
+        m_frames_for_object_detection.push(frame);
+      }
+
     } else {
       // If no frame was captured, wait a moment before the next attempt.
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -304,17 +334,60 @@ void Pipeline::networktables_loop() {
       m_output_publisher->sendConnectionStatus(m_camera->isConnected());
     }
 
-    AprilTagResult result;
+    AprilTagResult apriltag_result;
     // Use a timed wait so that we still publish connection status regularly
     // even if no new AprilTag results are available.
-    if (!m_estimated_poses.waitAndPopWithTimeout(result, std::chrono::milliseconds(50))) {
-      continue; // No new data, but we’ll loop again soon.
+    if (m_estimated_poses.waitAndPopWithTimeout(
+            apriltag_result, std::chrono::milliseconds(50))) {
+      // If we get a apriltag_result, publish it.
+      if (m_output_publisher) {
+        m_output_publisher->SendAprilTagResult(apriltag_result);
+      }
     }
 
+    ObjectDetectResult object_result;
+    if (m_object_detections.waitAndPopWithTimeout(
+            object_result, std::chrono::milliseconds(50))) {
+      // If we get a object_result, publish it.
+      if (m_output_publisher) {
+        m_output_publisher->SendObjectDetectResult(object_result);
+      }
+    }
+  }
+  void Pipeline::object_detection_loop() {
+    auto last_time = std::chrono::steady_clock::now();
+    double smoothed_fps = 0.0;
+    constexpr double alpha = 0.05;
 
-    // If we get a result, publish it.
-    if (m_output_publisher) {
-      m_output_publisher->SendAprilTagResult(result);
+    QueuedFrame frame;
+    while (m_is_running) {
+      // Wait for a frame to become available
+      if (m_frames_for_object_detection.waitAndPop(frame)) {
+        // --- Calculate FPS for this thread ---
+        auto current_time = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds =
+            current_time - last_time;
+        last_time = current_time;
+        const double instant_fps = 1.0 / elapsed_seconds.count();
+        smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+
+        // --- Run Object Detection ---
+        std::vector<ObjDetectObservation> raw_observations;
+        m_ObjectDetector->detect(frame, raw_observations);
+
+        if (!raw_observations.empty() && m_intrinsics_loaded) {
+          ObjectDetectResult object_result;
+          object_result.timestamp = frame.timestamp;
+          object_result.camera_role = frame.cameraRole;
+          object_result.fps = smoothed_fps;
+
+          for (auto& obs : raw_observations) {
+            ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
+            object_result.observations.push_back(obs);
+          }
+          m_object_detections.push(object_result);
+        }
+      }
     }
   }
 }

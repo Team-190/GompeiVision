@@ -36,7 +36,9 @@ NTOutputPublisher::NTOutputPublisher(const std::string_view hardware_id,
 
   observations_pub_ =
       table->GetDoubleArrayTopic("observations").Publish(options);
+  objects_pub_ = table->GetDoubleArrayTopic("objects").Publish(options);
   apriltags_fps_pub_ = table->GetIntegerTopic("fps_apriltags").Publish();
+  objects_fps_pub_ = table->GetIntegerTopic("fps_objects").Publish();
   connection_status_pub_ = table->GetBooleanTopic("connected").Publish();
 }
 
@@ -77,6 +79,28 @@ void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
                             result.timestamp.time_since_epoch())
                             .count());
   apriltags_fps_pub_.Set(result.fps);
+}
+
+void NTOutputPublisher::SendObjectDetectResult(const ObjectDetectResult& result) {
+  // --- Object detection data ---
+  std::vector<double> object_data;
+
+  // Serialize the results into a flat array of doubles.
+  // Data format is repeating blocks of:
+  // [class_id, confidence, c0_x_angle, c0_y_angle, c1_x_angle, ... ]
+  for (const auto& obs : result.observations) {
+    object_data.push_back(obs.obj_class);
+    object_data.push_back(obs.confidence);
+    object_data.insert(object_data.end(), obs.corner_angles.begin(),
+                       obs.corner_angles.end());
+  }
+
+  // Publish all data
+  objects_pub_.Set(object_data,
+                   std::chrono::duration_cast<std::chrono::microseconds>(
+                       result.timestamp.time_since_epoch())
+                       .count());
+  objects_fps_pub_.Set(result.fps);
 }
 
 void NTOutputPublisher::sendConnectionStatus(const bool isConnected) {

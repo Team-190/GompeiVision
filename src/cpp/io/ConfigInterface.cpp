@@ -22,10 +22,8 @@ constexpr auto kCompressed = "compressed";
 
 ConfigInterface::ConfigInterface(const std::string& hardwareID,
                                  const nt::NetworkTableInstance& nt_inst) {
-  m_table =
-      nt_inst.GetTable("/cameras/" + hardwareID);
-  m_configTable = nt_inst.GetTable(
-      "/cameras/" + hardwareID + "/config");
+  m_table = nt_inst.GetTable("/cameras/" + hardwareID);
+  m_configTable = nt_inst.GetTable("/cameras/" + hardwareID + "/config");
 
   if (m_table) {
     std::cout << "Initializing subscribers" << std::endl;

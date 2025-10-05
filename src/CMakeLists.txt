@@ -17,9 +17,11 @@ set(MANAGER_SOURCES
 set(WORKER_SOURCES
         cpp/capture/Camera.cpp
         cpp/detector/FiducialDetector.cpp
+        cpp/detector/ObjectDetector.cpp
         cpp/estimator/CameraPoseEstimator.cpp
         cpp/estimator/SingleTagPoseEstimator.cpp
         cpp/estimator/TagAngleCalculator.cpp
+        cpp/estimator/ObjectEstimator.cpp
         cpp/io/ConfigInterface.cpp
         cpp/io/FieldInterface.cpp
         cpp/io/OutputPublisher.cpp
