@@ -38,7 +38,7 @@ class ObjectDetector {
    * raw 2D detections.
    */
   void detect(const QueuedFrame& frame,
-              std::vector<ObjDetectObservation>& observations) const;
+              std::vector<ObjDetectObservation>& observations);
 
  private:
   cv::dnn::Net m_net;

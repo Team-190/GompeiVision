@@ -37,7 +37,7 @@ ObjectDetector::~ObjectDetector() { logInfo("Shutting down..."); }
 
 void ObjectDetector::detect(
     const QueuedFrame& q_frame,
-    std::vector<ObjDetectObservation>& observations) const {
+    std::vector<ObjDetectObservation>& observations) {
   if (q_frame.frame.empty() || m_net.empty()) {
     return;
   }
