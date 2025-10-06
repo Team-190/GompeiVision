@@ -354,39 +354,40 @@ void Pipeline::networktables_loop() {
       }
     }
   }
-  void Pipeline::object_detection_loop() {
-    auto last_time = std::chrono::steady_clock::now();
-    double smoothed_fps = 0.0;
-    constexpr double alpha = 0.05;
+}
 
-    QueuedFrame frame;
-    while (m_is_running) {
-      // Wait for a frame to become available
-      if (m_frames_for_object_detection.waitAndPop(frame)) {
-        // --- Calculate FPS for this thread ---
-        auto current_time = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsed_seconds =
-            current_time - last_time;
-        last_time = current_time;
-        const double instant_fps = 1.0 / elapsed_seconds.count();
-        smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+void Pipeline::object_detection_loop() {
+  auto last_time = std::chrono::steady_clock::now();
+  double smoothed_fps = 0.0;
+  constexpr double alpha = 0.05;
 
-        // --- Run Object Detection ---
-        std::vector<ObjDetectObservation> raw_observations;
-        m_ObjectDetector->detect(frame, raw_observations);
+  QueuedFrame frame;
+  while (m_is_running) {
+    // Wait for a frame to become available
+    if (m_frames_for_object_detection.waitAndPop(frame)) {
+      // --- Calculate FPS for this thread ---
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds =
+          current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-        if (!raw_observations.empty() && m_intrinsics_loaded) {
-          ObjectDetectResult object_result;
-          object_result.timestamp = frame.timestamp;
-          object_result.camera_role = frame.cameraRole;
-          object_result.fps = smoothed_fps;
+      // --- Run Object Detection ---
+      std::vector<ObjDetectObservation> raw_observations;
+      m_ObjectDetector->detect(frame, raw_observations);
 
-          for (auto& obs : raw_observations) {
-            ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
-            object_result.observations.push_back(obs);
-          }
-          m_object_detections.push(object_result);
+      if (!raw_observations.empty() && m_intrinsics_loaded) {
+        ObjectDetectResult object_result;
+        object_result.timestamp = frame.timestamp;
+        object_result.camera_role = frame.cameraRole;
+        object_result.fps = smoothed_fps;
+
+        for (auto& obs : raw_observations) {
+          ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
+          object_result.observations.push_back(obs);
         }
+        m_object_detections.push(object_result);
       }
     }
   }
