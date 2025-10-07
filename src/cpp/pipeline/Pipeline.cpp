@@ -1,4 +1,5 @@
 #include "pipeline/Pipeline.h"
+#include "pipeline/ModelManager.h"
 
 #include <cscore/cscore_cv.h>
 #include <httplib.h>
@@ -43,16 +44,20 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
 
-  // --- Initialize Object Detector ---
-  // Define paths for your new ONNX model and names file
-  const std::string modelPath = "/path/to/your/yolov8n.onnx";
-  const std::string classNamesPath = "/path/to/your/coco.names";
+  // --- Initialize Object Detector based on NT index ---
+  const int initial_model_index = m_config_interface->getModelIndex();
 
-  if (!modelPath.empty() && !classNamesPath.empty()) {
-    std::cout << "[" << m_role << "] Loading object detection model..."
-              << std::endl;
-    m_ObjectDetector =
-        std::make_unique<ObjectDetector>(modelPath, classNamesPath);
+  // Validate the index
+  if (initial_model_index >= 0 && initial_model_index < available_models.size()) {
+    const auto& selected_model = available_models[initial_model_index];
+    std::cout << "[" << m_role << "] Loading initial object detection model (index "
+              << initial_model_index << "): " << selected_model.modelPath << std::endl;
+
+    m_ObjectDetector = std::make_unique<ObjectDetector>(selected_model.modelPath, selected_model.namesPath);
+    m_active_model_index = initial_model_index;  // Set the active index
+  } else {
+    std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
+              << initial_model_index << "). Object detection disabled." << std::endl;
   }
 
   m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
@@ -116,6 +121,23 @@ void Pipeline::during() {
   if (!m_is_running) return;
 
   m_config_interface->update();
+
+  // --- Check for Model Change ---
+  const int new_model_index = m_config_interface->getModelIndex();
+  if (new_model_index != m_active_model_index) {
+    if (new_model_index >= 0 && new_model_index < available_models.size()) {
+      const auto& new_model = available_models[new_model_index];
+      std::cout << "[" << m_role << "] Model index changed to " << new_model_index
+                << ". Reloading object detector with: " << new_model.modelPath << std::endl;
+
+      // Replace the old detector with a new one
+      m_ObjectDetector = std::make_unique<ObjectDetector>(new_model.modelPath, new_model.namesPath);
+      m_active_model_index = new_model_index;  // Update the active index
+    } else {
+      std::cerr << "[" << m_role << "] ERROR: Received invalid model index ("
+                << new_model_index << "). Keeping current model." << std::endl;
+    }
+  }
 
   cv::Mat new_camera_matrix;
   cv::Mat new_dist_coeffs;

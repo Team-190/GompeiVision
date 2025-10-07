@@ -18,6 +18,7 @@ constexpr auto kGain = "gain";
 constexpr auto kWidth = "width";
 constexpr auto kHeight = "height";
 constexpr auto kCompressed = "compressed";
+constexpr auto kModelIndex = "model_index";
 }  // namespace nt_keys
 
 ConfigInterface::ConfigInterface(const std::string& hardwareID,
@@ -54,6 +55,8 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID,
         m_configTable->GetIntegerTopic(nt_keys::kHeight).Subscribe(0, options);
     m_compressedSub = m_configTable->GetBooleanTopic(nt_keys::kCompressed)
                           .Subscribe(false, options);
+    m_modelIndexSub = m_configTable->GetIntegerTopic(nt_keys::kModelIndex)
+                          .Subscribe(0, options);
 
     // Start the initialization thread
     m_initThread =
@@ -120,6 +123,7 @@ void ConfigInterface::update() {
   m_width = m_widthSub.Get();
   m_height = m_heightSub.Get();
   m_compressed = m_compressedSub.Get();
+  m_modelIndex = m_modelIndexSub.Get();
 }
 
 // --- State Getters ---
@@ -151,6 +155,8 @@ int ConfigInterface::getWidth() const { return m_width; }
 int ConfigInterface::getHeight() const { return m_height; }
 
 bool ConfigInterface::getCompressed() const { return m_compressed; }
+
+int ConfigInterface::getModelIndex() const { return m_modelIndex; }
 
 // --- Logging Helpers ---
 

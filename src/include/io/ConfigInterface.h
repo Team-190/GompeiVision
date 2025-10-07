@@ -38,11 +38,7 @@ class ConfigInterface {
   int getWidth() const;
   int getHeight() const;
   bool getCompressed() const;
-
-  // --- model paths ---
-  std::string getModelPath() const;
-  std::string getConfigPath() const;
-  std::string getClassNamesPath() const;
+  int getModelIndex() const;
 
  private:
   /**
@@ -66,11 +62,7 @@ class ConfigInterface {
   nt::IntegerSubscriber m_widthSub;
   nt::IntegerSubscriber m_heightSub;
   nt::BooleanSubscriber m_compressedSub;
-
-  // --- model paths ---
-  nt::StringSubscriber m_modelPathSub;
-  nt::StringSubscriber m_configPathSub;
-  nt::StringSubscriber m_classNamesPathSub;
+  nt::IntegerSubscriber m_modelIndexSub;
 
 
   // --- In-Memory Configuration Cache ---
@@ -84,11 +76,7 @@ class ConfigInterface {
   int m_width;
   int m_height;
   bool m_compressed;
-
-  // --- model paths ---
-  std::string m_modelPath;
-  std::string m_configPath;
-  std::string m_classNamesPath;
+  int m_modelIndex;
 
 
   // --- Threading and Synchronization for Initialization ---

@@ -62,6 +62,8 @@ class Pipeline {
   cv::Mat m_dist_coeffs;
   bool m_intrinsics_loaded = false;
 
+  int m_active_model_index = -1;
+
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<cs::MjpegServer> m_mjpeg_server;

@@ -35,5 +35,8 @@ install(FILES ${SYSTEM_LIBS}
         DESTINATION lib
 )
 
+# Install the models directory to the standard share location.
+install(DIRECTORY models/ DESTINATION share/GompeiVision)
+
 # Set up packaging with CPack
 include(packaging/CPackConfig.cmake)
