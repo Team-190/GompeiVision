@@ -4,8 +4,13 @@ name: Build and Package
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - feature-*
   pull_request:
+    branches:
+      - main
+      - feature-*
 
 jobs:
   # --- Job 1: Build for AMD64 / X86 ---
