@@ -39,9 +39,4 @@ void ObjectEstimator::calculate(ObjDetectObservation& observation,
     observation.corner_angles.push_back(std::atan(vec.at<double>(0, 0))); // Angle X
     observation.corner_angles.push_back(std::atan(vec.at<double>(1, 0))); // Angle Y
   }
-
-  // NOTE: Distance estimation is more complex for generic objects than for
-  // AprilTags. A simple method is to use the known width of the object and
-  // the camera's focal length. This is less accurate than solvePnP but is a
-  // common approach. You would add that logic here if needed.
 }
