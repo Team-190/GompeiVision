@@ -36,7 +36,12 @@ install(FILES ${SYSTEM_LIBS}
 )
 
 # Install the models directory to the standard share location.
-install(DIRECTORY models/ DESTINATION share/GompeiVision)
+install(
+    DIRECTORY models/
+    DESTINATION share/GompeiVision
+    FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
+    DIRECTORY_PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)
 
 # Set up packaging with CPack
 include(packaging/CPackConfig.cmake)
