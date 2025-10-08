@@ -379,14 +379,22 @@ void Pipeline::networktables_loop() {
 }
 
 void Pipeline::object_detection_loop() {
+  std::cout << "[" << m_role << "] DEBUG: Object detection thread starting" << std::endl;
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
   constexpr double alpha = 0.05;
 
   QueuedFrame frame;
+  int frame_count = 0;
   while (m_is_running) {
     // Wait for a frame to become available
+    std::cout << "[" << m_role << "] DEBUG: Object detection thread waiting for frame..." << std::endl;
     if (m_frames_for_object_detection.waitAndPop(frame)) {
+      frame_count++;
+      std::cout << "[" << m_role << "] DEBUG: Object detection thread received frame #" << frame_count 
+                << " (timestamp: " << std::chrono::duration_cast<std::chrono::milliseconds>(frame.timestamp.time_since_epoch()).count() 
+                << "ms)" << std::endl;
+      
       // --- Calculate FPS for this thread ---
       auto current_time = std::chrono::steady_clock::now();
       std::chrono::duration<double> elapsed_seconds =
@@ -395,22 +403,47 @@ void Pipeline::object_detection_loop() {
       const double instant_fps = 1.0 / elapsed_seconds.count();
       smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
+      std::cout << "[" << m_role << "] DEBUG: Object detection thread FPS: " << smoothed_fps 
+                << " (instant: " << instant_fps << ")" << std::endl;
+
       // --- Run Object Detection ---
       std::vector<ObjDetectObservation> raw_observations;
+      std::cout << "[" << m_role << "] DEBUG: Calling ObjectDetector->detect() on frame..." << std::endl;
       m_ObjectDetector->detect(frame, raw_observations);
+      std::cout << "[" << m_role << "] DEBUG: ObjectDetector->detect() completed, found " 
+                << raw_observations.size() << " raw observations" << std::endl;
 
       if (!raw_observations.empty() && m_intrinsics_loaded) {
+        std::cout << "[" << m_role << "] DEBUG: Processing " << raw_observations.size() 
+                  << " observations with camera intrinsics (intrinsics_loaded: " << m_intrinsics_loaded << ")" << std::endl;
+        
         ObjectDetectResult object_result;
         object_result.timestamp = frame.timestamp;
         object_result.camera_role = frame.cameraRole;
         object_result.fps = smoothed_fps;
 
-        for (auto& obs : raw_observations) {
+        for (size_t i = 0; i < raw_observations.size(); ++i) {
+          auto& obs = raw_observations[i];
+          std::cout << "[" << m_role << "] DEBUG: Processing observation " << (i+1) << "/" << raw_observations.size() 
+                    << " - class=" << obs.obj_class << ", confidence=" << obs.confidence << std::endl;
           ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
           object_result.observations.push_back(obs);
+          std::cout << "[" << m_role << "] DEBUG: Observation " << (i+1) << " processed and added to result" << std::endl;
         }
+        
+        std::cout << "[" << m_role << "] DEBUG: Pushing object detection result to queue (total observations: " 
+                  << object_result.observations.size() << ")" << std::endl;
         m_object_detections.push(object_result);
+        std::cout << "[" << m_role << "] DEBUG: Object detection result pushed successfully" << std::endl;
+      } else if (raw_observations.empty()) {
+        std::cout << "[" << m_role << "] DEBUG: No objects detected in frame #" << frame_count << std::endl;
+      } else if (!m_intrinsics_loaded) {
+        std::cout << "[" << m_role << "] DEBUG: Camera intrinsics not loaded, skipping object estimation for " 
+                  << raw_observations.size() << " observations" << std::endl;
       }
+    } else {
+      std::cout << "[" << m_role << "] DEBUG: Object detection thread frame wait failed or interrupted" << std::endl;
     }
   }
+  std::cout << "[" << m_role << "] DEBUG: Object detection thread exiting (processed " << frame_count << " frames total)" << std::endl;
 }
