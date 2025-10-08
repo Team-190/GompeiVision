@@ -37,7 +37,8 @@ ObjectDetector::~ObjectDetector() { logInfo("Shutting down..."); }
 
 void ObjectDetector::detect(
     const QueuedFrame& q_frame,
-    std::vector<ObjDetectObservation>& observations) {
+    std::vector<ObjDetectObservation>& observations,
+    std::vector<cv::Rect>& final_boxes) {
   if (q_frame.frame.empty() || m_net.empty()) {
     return;
   }
@@ -99,6 +100,10 @@ void ObjectDetector::detect(
   cv::dnn::NMSBoxes(boxes, confidences, m_confidence_threshold, m_nms_threshold,
                     nms_result);
 
+  // Clear output vectors before populating
+  observations.clear();
+  final_boxes.clear();
+
   for (int idx : nms_result) {
     ObjDetectObservation obs;
     obs.obj_class = class_ids[idx];
@@ -113,7 +118,12 @@ void ObjectDetector::detect(
       (double)box.tl().x, (double)box.br().y  // Bottom-Left
     };
     observations.push_back(obs);
+    final_boxes.push_back(box); // Populate the final boxes vector
   }
+}
+
+const std::vector<std::string>& ObjectDetector::getClassNames() const {
+  return m_class_names;
 }
 
 void ObjectDetector::logInfo(const std::string& message) const {

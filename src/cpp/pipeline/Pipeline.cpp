@@ -243,6 +243,19 @@ void Pipeline::during() {
 
       std::cout << "[" << m_role << "] MJPEG stream available at port "
                 << m_stream_port << std::endl;
+
+      m_annotated_mjpeg_server = std::make_unique<cs::MjpegServer>(
+          m_role + "_stream_annotated", m_stream_port + 1);
+      m_annotated_cv_source = std::make_unique<cs::CvSource>(
+          m_role + "_source_annotated", cs::VideoMode::PixelFormat::kBGR,
+          m_active_width, m_active_height, 60);
+
+      CS_Status annotated_status = 0;
+      cs::SetSinkSource(m_annotated_mjpeg_server->GetHandle(),
+                        m_annotated_cv_source.get()->GetHandle(), &annotated_status);
+
+      std::cout << "[" << m_role << "] Annotated MJPEG stream available at port "
+                << m_stream_port + 1 << std::endl;
     }
 
   } else {
@@ -252,6 +265,8 @@ void Pipeline::during() {
                 << std::endl;
     m_mjpeg_server.reset();
     m_cv_source.reset();
+    m_annotated_mjpeg_server.reset();
+    m_annotated_cv_source.reset();
   }
 }
 
@@ -397,7 +412,40 @@ void Pipeline::object_detection_loop() {
 
       // --- Run Object Detection ---
       std::vector<ObjDetectObservation> raw_observations;
-      m_ObjectDetector->detect(frame, raw_observations);
+      std::vector<cv::Rect> detected_boxes; // To store the boxes
+      m_ObjectDetector->detect(frame, raw_observations, detected_boxes);
+
+      // --- Draw annotations and stream ONLY if in setup mode ---
+      if (m_config_interface->isSetupMode() && m_annotated_cv_source) {
+        // Use a copy to avoid drawing on the frame needed for other processing
+        cv::Mat annotated_frame = frame.frame.clone();
+        const auto& class_names = m_ObjectDetector->getClassNames();
+
+        for (size_t i = 0; i < raw_observations.size(); ++i) {
+          const auto& obs = raw_observations[i];
+          const auto& box = detected_boxes[i];
+
+          // Draw the rectangle
+          cv::rectangle(annotated_frame, box, cv::Scalar(0, 255, 0), 2);
+
+          // Create the label text
+          std::string label = class_names[obs.obj_class] + ": " +
+                            cv::format("%.2f", obs.confidence);
+
+          int baseLine;
+          cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+          int top = std::max(box.y, labelSize.height);
+
+          // Draw a filled background for the label
+          cv::rectangle(annotated_frame, cv::Point(box.x, top - labelSize.height),
+                        cv::Point(box.x + labelSize.width, top + baseLine),
+                        cv::Scalar(0, 0, 0), cv::FILLED);
+          // Draw the label text
+          cv::putText(annotated_frame, label, cv::Point(box.x, top),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        }
+        m_annotated_cv_source->PutFrame(annotated_frame);
+      }
 
       if (!raw_observations.empty() && m_intrinsics_loaded) {
         ObjectDetectResult object_result;

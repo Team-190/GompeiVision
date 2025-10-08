@@ -39,6 +39,12 @@ class ObjectDetector {
    */
   void detect(const QueuedFrame& frame,
               std::vector<ObjDetectObservation>& observations);
+  /**
+   * @brief Gets the class names used by the model.
+   * @return A constant reference to the vector of class name strings.
+   */
+  const std::vector<std::string>& getClassNames() const;
+
 
  private:
   cv::dnn::Net m_net;

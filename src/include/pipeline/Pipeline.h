@@ -69,6 +69,10 @@ class Pipeline {
   std::unique_ptr<cs::MjpegServer> m_mjpeg_server;
   std::unique_ptr<cs::CvSource> m_cv_source;
 
+  std::unique_ptr<cs::MjpegServer> m_annotated_mjpeg_server;
+  std::unique_ptr<cs::CvSource> m_annotated_cv_source;
+
+
   // --- Detectors ---
   FiducialDetector m_AprilTagDetector;
   std::unique_ptr<ObjectDetector> m_ObjectDetector;
