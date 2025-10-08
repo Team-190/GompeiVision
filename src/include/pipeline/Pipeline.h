@@ -1,89 +1,67 @@
 #pragma once
 
-#include <httplib.h>
-#include <libudev.h>
-
 #include <atomic>
-#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
-#include "../io/OutputPublisher.h"
+#include "apriltag.h"
 #include "capture/Camera.h"
-#include "cscore_cv.h"
 #include "detector/FiducialDetector.h"
 #include "detector/ObjectDetector.h"
+#include "estimator/CameraPoseEstimator.h"
+#include "estimator/ObjectEstimator.h"
+#include "estimator/TagAngleCalculator.h"
 #include "io/ConfigInterface.h"
 #include "io/FieldInterface.h"
-#include "util/QueuedFiducialData.h"
-#include "util/QueuedObjectData.h"  
+#include "io/OutputPublisher.h"
 #include "util/ThreadSafeQueue.h"
-#include "util/QueuedFrame.h"
+#include "wpi/DataLog.h"
 
-
-struct UdevContextDeleter {
-  void operator()(struct udev* ctx) const {
-    if (ctx) udev_unref(ctx);
-  }
-};
+// forward declare
+class Log;
 
 class Pipeline {
  public:
-  Pipeline(const std::string& device_path, const std::string& hardware_id,
-           const int stream_port, nt::NetworkTableInstance& nt_inst);
+  explicit Pipeline(int id, const std::string& name, wpi::log::DataLog& log);
   ~Pipeline();
-
   void start();
-  void during();
-  void stop();
-
-  bool isRunning() const;
 
  private:
-  void processing_loop();
-  void networktables_loop();
-  void object_detection_loop();
+  void m_process_thread();
+  void m_network_thread();
+  void m_setup_mode_thread();
 
-  std::atomic<bool> m_is_running{false};
+  int m_id;
+  std::string m_name;
 
-  std::string m_hardware_id;
-  std::string m_role;
-  int m_stream_port;
-  std::mutex m_role_mutex;
-
-  // Cached settings to prevent unnecessary reloads
-  int m_active_width = 0;
-  int m_active_height = 0;
-  int m_active_exposure = 0;
-  int m_active_gain = 0;
-  cv::Mat m_camera_matrix;
-  cv::Mat m_dist_coeffs;
-  bool m_intrinsics_loaded = false;
-
-  int m_active_model_index = -1;
+  std::atomic<bool> m_run = true;
+  std::thread m_process_handle;
+  std::thread m_network_handle;
+  std::thread m_setup_mode_handle;
 
   std::unique_ptr<Camera> m_camera;
-
-  std::unique_ptr<cs::MjpegServer> m_mjpeg_server;
-  std::unique_ptr<cs::CvSource> m_cv_source;
-
-  // --- Detectors ---
-  FiducialDetector m_AprilTagDetector;
-  std::unique_ptr<ObjectDetector> m_ObjectDetector;
-
-  // --- Pipeline Data Flow ---
-  ThreadSafeQueue<AprilTagResult> m_estimated_poses;
-  ThreadSafeQueue<ObjectDetectResult> m_object_detections;
-  ThreadSafeQueue<QueuedFrame> m_frames_for_object_detection;
-
-  // Threads & Control
-  std::thread m_processing_thread;
-  std::thread m_networktables_thread;
-  std::thread m_object_detection_thread;
-
-  // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;
+  std::unique_ptr<FieldInterface> m_field_interface;
+  std::unique_ptr<FiducialDetector> m_fiducial_detector;
+  std::unique_ptr<ObjectDetector> m_object_detector;
+  std::unique_ptr<ObjectEstimator> m_object_estimator;
+  std::unique_ptr<TagAngleCalculator> m_tag_angle_calculator;
+  std::unique_ptr<CameraPoseEstimator> m_camera_pose_estimator;
   std::unique_ptr<OutputPublisher> m_output_publisher;
+
+  // intermediate queues
+  ThreadSafeQueue<AprilTagResult> m_output_queue;
+
+  wpi::log::DataLog& m_log;
+  wpi::log::BooleanLogEntry m_log_is_running;
+  wpi::log::IntegerLogEntry m_log_camera_id;
+  wpi::log::StringLogEntry m_log_camera_name;
+
+  // For setup mode annotations
+  std::vector<FiducialImageObservation> m_latest_fiducial_observations;
+  std::vector<ObjDetectObservation> m_latest_obj_observations;
+  std::mutex m_observation_mutex;
 };
