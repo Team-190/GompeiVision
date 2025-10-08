@@ -34,11 +34,13 @@ class ObjectDetector {
   /**
    * @brief Detects all objects in a given frame.
    * @param frame The input image from the camera.
-   * @param result A reference to the result object to be populated with
-   * raw 2D detections.
+   * @param observations A reference to the result object to be populated.
+   * @param final_boxes A vector to be populated with the cv::Rect for each observation.
    */
   void detect(const QueuedFrame& frame,
-              std::vector<ObjDetectObservation>& observations);
+              std::vector<ObjDetectObservation>& observations,
+              std::vector<cv::Rect>& final_boxes);
+
   /**
    * @brief Gets the class names used by the model.
    * @return A constant reference to the vector of class name strings.

@@ -101,7 +101,6 @@ void ObjectDetector::detect(
                     nms_result);
 
   // Clear output vectors before populating
-  observations.clear();
   final_boxes.clear();
 
   for (int idx : nms_result) {
@@ -122,14 +121,14 @@ void ObjectDetector::detect(
   }
 }
 
-const std::vector<std::string>& ObjectDetector::getClassNames() const {
-  return m_class_names;
-}
-
 void ObjectDetector::logInfo(const std::string& message) const {
   std::cout << "[ObjectDetector INFO] " << message << std::endl;
 }
 
 void ObjectDetector::logError(const std::string& message) const {
   std::cerr << "[ObjectDetector ERROR] " << message << std::endl;
+}
+
+const std::vector<std::string>& ObjectDetector::getClassNames() const {
+    return m_class_names;
 }
