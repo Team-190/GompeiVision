@@ -1,246 +1,416 @@
 #include "pipeline/Pipeline.h"
+#include "pipeline/ModelManager.h"
+
+#include <cscore/cscore_cv.h>
+#include <httplib.h>
 
 #include <chrono>
-#include <cscore/CvSource.h>
-#include <cscore/MjpegServer.h>
-#include <cscore/cscore_oo.h>
-#include <fmt/format.h>
-#include <frc/apriltag/AprilTagFieldLayout.h>
-#include <frc/geometry/Pose3d.h>
-#include <opencv2/core/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <sstream>
-#include <iomanip>
-#include <unistd.h>
-#include <wpi/DataLog.h>
-#include <wpi/json.h>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include <opencv2/calib3d.hpp>
+#include <string>
+#include <thread>
 
-#include "util/Log.h"
-#include "util/PoseUtils.h"
+#include "capture/Camera.h"
+#include "detector/ObjectDetector.h"
+#include "estimator/CameraPoseEstimator.h"
+#include "estimator/ObjectEstimator.h"
+#include "estimator/SingleTagPoseEstimator.h"
+#include "estimator/TagAngleCalculator.h"
+#include "io/OutputPublisher.h"
+#include "pipeline/PipelineHelper.h"
 
-using namespace std::chrono_literals;
+Pipeline::Pipeline(const std::string& device_path,
+                   const std::string& hardware_id, const int stream_port,
+                   nt::NetworkTableInstance& nt_inst)
+    : m_hardware_id(hardware_id), m_stream_port(stream_port) {
+  m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
-Pipeline::Pipeline(int id, const std::string& name, wpi::log::DataLog& log)
-    : m_id(id),
-      m_name(name),
-      m_log(log),
-      m_log_is_running(log, fmt::format("pipeline/{}/is_running", name)),
-      m_log_camera_id(log, fmt::format("pipeline/{}/camera_id", name)),
-      m_log_camera_name(log, fmt::format("pipeline/{}/camera_name", name)) {}
+  m_config_interface->waitForInitialization();
+
+  m_config_interface->update();
+
+  m_role = m_config_interface->getRole();
+
+  // Initialize active settings from config
+  m_active_width = m_config_interface->getWidth();
+  m_active_height = m_config_interface->getHeight();
+  m_active_exposure = m_config_interface->getExposure();
+  m_active_gain = m_config_interface->getGain();
+
+  std::cout << "[" << m_role << "] Initializing pipeline..." << std::endl;
+
+  // --- Initialize Object Detector based on NT index ---
+  const int initial_model_index = m_config_interface->getModelIndex();
+
+  // Validate the index
+  if (initial_model_index >= 0 && initial_model_index < available_models.size()) {
+    const auto& selected_model = available_models[initial_model_index];
+    std::cout << "[" << m_role << "] Loading initial object detection model (index "
+              << initial_model_index << "): " << selected_model.modelPath << std::endl;
+
+    m_ObjectDetector = std::make_unique<ObjectDetector>(selected_model.modelPath, selected_model.namesPath);
+    m_active_model_index = initial_model_index;  // Set the active index
+  } else {
+    std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
+              << initial_model_index << "). Object detection disabled." << std::endl;
+  }
+
+  m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
+                                      m_active_height);
+
+  // Set initial camera connection status
+
+  if (!m_camera->isConnected()) {
+    std::cerr << "[" << m_role
+              << "] WARNING: Camera failed to connect on startup." << std::endl;
+  }
+
+  m_camera->setExposure(m_active_exposure);
+  m_camera->setBrightness(m_active_gain);
+
+  if (!FieldInterface::isInitialized()) {
+    FieldInterface::initialize(nt_inst);
+  }
+
+  while (!FieldInterface::update());
+
+  m_output_publisher =
+      std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
+
+  m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+      *m_config_interface, m_camera_matrix, m_dist_coeffs);
+
+  if (m_intrinsics_loaded) {
+    std::cout << "[" << m_role << "] Initial Camera Matrix: "
+              << cv::format(m_camera_matrix, cv::Formatter::FMT_DEFAULT)
+              << std::endl;
+    std::cout << "[" << m_role << "] Initial Distortion Coefficients: "
+              << cv::format(m_dist_coeffs, cv::Formatter::FMT_DEFAULT)
+              << std::endl;
+  } else {
+    std::cerr << "[" << m_role
+              << "] WARNING: Cannot run Pose Estimator without valid "
+                 "calibration. Pose estimation will be disabled."
+              << std::endl;
+  }
+
+  std::cout << "[" << m_role
+            << "] Initialized pipeline with ID: " << hardware_id << std::endl;
+}
 
 Pipeline::~Pipeline() {
-  m_run.store(false);
-
-  if (m_process_handle.joinable()) {
-    m_process_handle.join();
-  }
-  if (m_network_handle.joinable()) {
-    m_network_handle.join();
-  }
-  if (m_setup_mode_handle.joinable()) {
-    m_setup_mode_handle.join();
-  }
-  Log(m_name) << "pipeline shutdown complete" << std::endl;
+  std::cout << "[" << m_role << "] Shutting down pipeline..." << std::endl;
+  stop();
 }
 
 void Pipeline::start() {
-  Log(m_name) << "starting pipeline" << std::endl;
-  m_process_handle = std::thread(&Pipeline::m_process_thread, this);
+  if (m_is_running) return;
+  m_is_running = true;
+  m_processing_thread = std::thread(&Pipeline::processing_loop, this);
+  m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
+  m_object_detection_thread =
+      std::thread(&Pipeline::object_detection_loop, this);
 }
 
-void Pipeline::m_process_thread() {
-  Log(m_name) << "process thread started" << std::endl;
-  m_log_camera_id.Append(m_id);
-  m_log_camera_name.Append(m_name);
+void Pipeline::during() {
+  if (!m_is_running) return;
 
-  // create interfaces
-  m_camera = std::make_unique<Camera>(m_name, m_id, m_log);
-  m_config_interface = std::make_unique<ConfigInterface>(m_name, m_log);
-  m_field_interface = std::make_unique<FieldInterface>(m_name, m_log);
+  m_config_interface->update();
 
-  // wait for config to be populated
-  while (m_run.load() && m_config_interface->get_role().empty()) {
-    Log(m_name) << "waiting for config" << std::endl;
-    std::this_thread::sleep_for(1s);
+  // --- Check for Model Change ---
+  const int new_model_index = m_config_interface->getModelIndex();
+  if (new_model_index != m_active_model_index) {
+    if (new_model_index >= 0 && new_model_index < available_models.size()) {
+      const auto& new_model = available_models[new_model_index];
+      std::cout << "[" << m_role << "] Model index changed to " << new_model_index
+                << ". Reloading object detector with: " << new_model.modelPath << std::endl;
+
+      // Replace the old detector with a new one
+      m_ObjectDetector = std::make_unique<ObjectDetector>(new_model.modelPath, new_model.namesPath);
+      m_active_model_index = new_model_index;  // Update the active index
+    } else {
+      std::cerr << "[" << m_role << "] ERROR: Received invalid model index ("
+                << new_model_index << "). Keeping current model." << std::endl;
+    }
   }
 
-  // load camera calibration from config
-  m_camera->load_calibration(m_config_interface->get_camera_matrix(),
-                             m_config_interface->get_dist_coeffs());
+  cv::Mat new_camera_matrix;
+  cv::Mat new_dist_coeffs;
+  const bool new_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+      *m_config_interface, new_camera_matrix, new_dist_coeffs);
 
-  // create detectors & estimators
-  m_fiducial_detector = std::make_unique<FiducialDetector>(m_name, m_log);
-  m_object_detector = std::make_unique<ObjectDetector>(
-      "/home/gompei/GompeiVision/models/reefscape_yolov8n.onnx",
-      "/home/gompei/GompeiVision/models/reefscape.names");
-  m_tag_angle_calculator = std::make_unique<TagAngleCalculator>(m_name, m_log);
-  m_camera_pose_estimator =
-      std::make_unique<CameraPoseEstimator>(m_name, m_log);
+  bool changed = false;
+  if (m_intrinsics_loaded != new_intrinsics_loaded) {
+    changed = true;
+  } else if (new_intrinsics_loaded) {
+    if (cv::norm(m_camera_matrix, new_camera_matrix, cv::NORM_L1) != 0 ||
+        cv::norm(m_dist_coeffs, new_dist_coeffs, cv::NORM_L1) != 0) {
+      changed = true;
+    }
+  }
 
-  // start network thread
-  m_network_handle = std::thread(&Pipeline::m_network_thread, this);
+  if (changed) {
+    m_camera_matrix = new_camera_matrix.clone();
+    m_dist_coeffs = new_dist_coeffs.clone();
+    m_intrinsics_loaded = new_intrinsics_loaded;
 
-  bool last_setup_mode = false;
+    if (m_intrinsics_loaded) {
+      std::cout << "[" << m_role << "] Camera Matrix updated: "
+                << cv::format(m_camera_matrix, cv::Formatter::FMT_DEFAULT)
+                << std::endl;
+      std::cout << "[" << m_role << "] Distortion Coefficients updated: "
+                << cv::format(m_dist_coeffs, cv::Formatter::FMT_DEFAULT)
+                << std::endl;
+    } else {
+      std::cerr << "[" << m_role
+                << "] WARNING: Camera intrinsics have been invalidated."
+                << std::endl;
+    }
+  }
 
-  while (m_run.load()) {
-    m_log_is_running.Append(true);
+  if (m_config_interface->isSetupMode()) {
+    // --- We are in Setup Mode ---
 
-    // check for setup mode change
-    bool setup_mode = m_config_interface->get_setup_mode();
-    if (setup_mode && !last_setup_mode) {
-      if (m_setup_mode_handle.joinable()) {
-        m_setup_mode_handle.join();
+    const int new_width = m_config_interface->getWidth();
+    const int new_height = m_config_interface->getHeight();
+    const int new_exposure = m_config_interface->getExposure();
+    const int new_gain = m_config_interface->getGain();
+
+    const bool resolution_changed =
+        (new_width != m_active_width || new_height != m_active_height);
+    const bool exposure_changed = (new_exposure != m_active_exposure);
+    const bool gain_changed = (new_gain != m_active_gain);
+
+    // If resolution changed, we must restart the server.
+    if (resolution_changed) {
+      std::cout << "[" << m_role << "] Resolution changed to " << new_width
+                << "x" << new_height << ". Restarting stream." << std::endl;
+
+      // 1. Stop the server if it's running
+      if (m_config_interface->isSetupMode()) {
+        m_mjpeg_server.reset();
+        m_cv_source.reset();
       }
-      m_setup_mode_handle = std::thread(&Pipeline::m_setup_mode_thread, this);
-    }
-    last_setup_mode = setup_mode;
 
-    // TODO: check for role change
+      // 2. Update active settings
+      m_active_width = new_width;
+      m_active_height = new_height;
 
-    // update camera config
-    m_camera->set_exposure(m_config_interface->get_exposure());
-
-    // grab frame
-    QueuedFrame q_frame;
-    if (!m_camera->getFrame(q_frame)) {
-      // failed to get frame, wait and try again
-      std::this_thread::sleep_for(100ms);
-      continue;
+      // 3. Apply to camera
+      // if (m_camera) {
+      //   m_camera->setResolution(m_active_width, m_active_height);
+      // }
+      // The server will be started (or restarted) by the logic below.
     }
 
-    AprilTagResult result;
-    result.capture_timestamp = q_frame.timestamp;
-
-    std::vector<FiducialImageObservation> fiducial_observations;
-    std::vector<ObjDetectObservation> object_observations;
-
-    m_fiducial_detector->detect(*q_frame, fiducial_observations);
-    m_object_detector->detect(*q_frame, object_observations);
-
-    // Update latest observations for setup mode stream
-    {
-      std::lock_guard<std::mutex> lock(m_observation_mutex);
-      m_latest_fiducial_observations = fiducial_observations;
-      m_latest_obj_observations = object_observations;
+    // Apply other settings if they have changed.
+    if (exposure_changed) {
+      m_active_exposure = new_exposure;
+      if (m_camera) {
+        m_camera->setExposure(m_active_exposure);
+      }
+      std::cout << "[" << m_role << "] Exposure updated to "
+                << m_active_exposure << std::endl;
+    }
+    if (gain_changed) {
+      m_active_gain = new_gain;
+      if (m_camera) {
+        m_camera->setBrightness(m_active_gain);
+      }
+      std::cout << "[" << m_role << "] Gain updated to " << m_active_gain
+                << std::endl;
     }
 
-    m_tag_angle_calculator->calculate(
-        fiducial_observations, m_camera->get_camera_matrix(),
-        m_camera->get_dist_coeffs(), result.tag_data);
+    // Ensure the server is running if we are in setup mode.
+    if (m_config_interface->isSetupMode() && !m_mjpeg_server) {
+      std::cout << "[" << m_role
+                << "] Setup mode enabled. Initializing servers." << std::endl;
 
-    m_camera_pose_estimator->estimate(
-        fiducial_observations, m_field_interface->get_layout(),
-        m_camera->get_camera_matrix(), m_camera->get_dist_coeffs(),
-        result.primary_pose, result.secondary_pose);
+      m_mjpeg_server =
+          std::make_unique<cs::MjpegServer>(m_role + "_stream", m_stream_port);
+      m_cv_source = std::make_unique<cs::CvSource>(
+          m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_active_width,
+          m_active_height, 60);
 
-    // TODO: object estimation
+      CS_Status status = 0;
+      cs::SetSinkSource(m_mjpeg_server->GetHandle(),
+                        m_cv_source.get()->GetHandle(), &status);
 
-    m_output_queue.push(result);
+      std::cout << "[" << m_role << "] MJPEG stream available at port "
+                << m_stream_port << std::endl;
+    }
+
+  } else {
+    // --- We are NOT in Setup Mode ---
+    if (!m_config_interface->isSetupMode() && m_mjpeg_server)
+      std::cout << "[" << m_role << "] Setup mode disabled. Stopping servers."
+                << std::endl;
+    m_mjpeg_server.reset();
+    m_cv_source.reset();
   }
 }
 
-void Pipeline::m_network_thread() {
-  Log(m_name) << "network thread started" << std::endl;
+void Pipeline::stop() {
+  if (!m_is_running) return;
+  m_is_running = false;
 
-  // wait for config to be populated
-  while (m_run.load() && m_config_interface->get_role().empty()) {
-    Log(m_name) << "waiting for config" << std::endl;
-    std::this_thread::sleep_for(1s);
-  }
+  m_estimated_poses.shutdown();
+  m_object_detections.shutdown();
+  m_frames_for_object_detection.shutdown();
 
-  // create publisher
-  m_output_publisher = std::make_unique<OutputPublisher>(m_name, m_log);
-  while (m_run.load()) {
-    auto result = m_output_queue.pop();
-    if (result.has_value()) {
-      m_output_publisher->publish(result.value());
+  if (m_processing_thread.joinable()) m_processing_thread.join();
+  if (m_networktables_thread.joinable()) m_networktables_thread.join();
+  if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
+
+  std::cout << "[" << m_role << "] All threads stopped." << std::endl;
+}
+
+bool Pipeline::isRunning() const { return m_is_running; }
+
+void Pipeline::processing_loop() {
+  auto last_time = std::chrono::steady_clock::now();
+  double smoothed_fps = 0.0;
+
+  QueuedFrame frame;
+  std::chrono::time_point<std::chrono::system_clock> timestamp;
+
+  while (m_is_running) {
+    bool frame_was_captured = false;
+
+    if (m_camera) {
+      // The definitive test for a camera connection is whether we can get a
+      // frame.
+      if (m_camera->getFrame(frame.frame, timestamp)) {
+        frame.cameraRole = m_role;
+        frame.timestamp = timestamp;
+        frame_was_captured = true;
+      } else {
+        // If getting a frame fails, the camera is considered disconnected.
+        // Attempt to reconnect for the next cycle.
+        m_camera->attemptReconnect();
+      }
+    }
+
+    // Update the shared connection status flag once per loop iteration.
+    if (frame_was_captured) {
+      // --- Frame processing continues only if a frame was captured ---
+      constexpr double alpha = 0.05;
+
+      if (m_config_interface->isSetupMode() && m_cv_source) {
+        m_cv_source->PutFrame(frame.frame);
+      }
+
+      // --- AprilTag Processing ---
+      FiducialImageObservation frame_observation;
+      frame_observation.timestamp = timestamp;
+
+      m_AprilTagDetector.detect(frame, frame_observation);
+
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+
+      if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
+        AprilTagResult apriltag_result;
+        apriltag_result.timestamp = frame_observation.timestamp;
+        apriltag_result.camera_role = m_role;
+        constexpr double tag_size_m = 0.1651;
+
+        cv::Mat cameraMatrix = m_camera_matrix.clone();
+        cv::Mat distCoeffs = m_dist_coeffs.clone();
+
+        CameraPoseEstimator::estimatePose(frame_observation, apriltag_result,
+                                          cameraMatrix, distCoeffs, tag_size_m,
+                                          FieldInterface::getMap());
+
+        TagAngleCalculator::calculate(frame_observation, apriltag_result,
+                                      cameraMatrix, distCoeffs, tag_size_m);
+
+        apriltag_result.fps = smoothed_fps;
+        m_estimated_poses.push(apriltag_result);
+      }
+
+      // --- Object Detection Processing (Push to NEW Thread) ---
+      if (m_ObjectDetector) {
+        m_frames_for_object_detection.push(frame);
+      }
+
+    } else {
+      // If no frame was captured, wait a moment before the next attempt.
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
 }
 
-void Pipeline::m_setup_mode_thread() {
-  Log(m_name) << "setup mode thread started" << std::endl;
-
-  cs::MjpegServer server("camera_server", 5800 + m_id);
-  cs::CvSource source("cv_source", cs::VideoMode::kMJPEG, 1280, 720, 30);
-  server.SetSource(source);
-  Log(m_name) << "mjpeg server started on port " << std::to_string(5800 + m_id)
-              << std::endl;
-
-  while (m_run.load()) {
-    if (!m_config_interface->get_setup_mode()) {
-      Log(m_name) << "exiting setup mode" << std::endl;
-      // cs::RemoveServer("camera_server"); // TODO: does this work as expected?
-      break;
+void Pipeline::networktables_loop() {
+  while (m_is_running) {
+    // Always publish the latest known connection status.
+    if (m_output_publisher) {
+      m_output_publisher->sendConnectionStatus(m_camera->isConnected());
     }
 
-    QueuedFrame q_frame;
-    if (!m_camera->getFrame(q_frame)) {
-      Log(m_name, true) << "failed to get frame for setup mode" << std::endl;
-      std::this_thread::sleep_for(100ms);
-      continue;
-    }
-    
-    cv::Mat setup_frame = q_frame.frame.clone();
-
-    // Get the latest observations safely
-    std::vector<FiducialImageObservation> local_fiducial_obs;
-    std::vector<ObjDetectObservation> local_object_obs;
-    {
-      std::lock_guard<std::mutex> lock(m_observation_mutex);
-      local_fiducial_obs = m_latest_fiducial_observations;
-      local_object_obs = m_latest_obj_observations;
-    }
-
-    // Annotate Fiducials
-    for (const auto& obs : local_fiducial_obs) {
-      // Create a vector of cv::Point for polylines
-      std::vector<cv::Point> points;
-      for (size_t i = 0; i < obs.corner_pixels.size(); i += 2) {
-        points.emplace_back(obs.corner_pixels[i], obs.corner_pixels[i + 1]);
+    AprilTagResult apriltag_result;
+    // Use a timed wait so that we still publish connection status regularly
+    // even if no new AprilTag results are available.
+    if (m_estimated_poses.waitAndPopWithTimeout(
+            apriltag_result, std::chrono::milliseconds(50))) {
+      // If we get a apriltag_result, publish it.
+      if (m_output_publisher) {
+        m_output_publisher->SendAprilTagResult(apriltag_result);
       }
-      
-      // Draw the outline of the tag
-      if (points.size() == 4) {
-        cv::polylines(setup_frame, points, true, cv::Scalar(0, 255, 0), 2);
-      }
-
-      // Draw the tag ID
-      std::string tag_text = "ID: " + std::to_string(obs.tag_id);
-      cv::putText(setup_frame, tag_text, points[0], cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
     }
 
-    // Annotate Objects
-    if (m_object_detector) { // Ensure object detector is initialized
-      for (const auto& obs : local_object_obs) {
-        if (obs.corner_pixels.size() < 8) continue;
+    ObjectDetectResult object_result;
+    if (m_object_detections.waitAndPopWithTimeout(
+            object_result, std::chrono::milliseconds(50))) {
+      // If we get a object_result, publish it.
+      if (m_output_publisher) {
+        m_output_publisher->SendObjectDetectResult(object_result);
+      }
+    }
+  }
+}
 
-        // Define the bounding box corners from the corner_pixels vector
-        cv::Point tl(obs.corner_pixels[0], obs.corner_pixels[1]);
-        cv::Point br(obs.corner_pixels[4], obs.corner_pixels[5]);
-        cv::rectangle(setup_frame, tl, br, cv::Scalar(255, 0, 0), 2);
-        
-        // Prepare label text (class name and confidence)
-        std::string label = "Unknown";
-        if (obs.obj_class < m_object_detector->m_class_names.size()) {
-            label = m_object_detector->m_class_names[obs.obj_class];
+void Pipeline::object_detection_loop() {
+  auto last_time = std::chrono::steady_clock::now();
+  double smoothed_fps = 0.0;
+  constexpr double alpha = 0.05;
+
+  QueuedFrame frame;
+  while (m_is_running) {
+    // Wait for a frame to become available
+    if (m_frames_for_object_detection.waitAndPop(frame)) {
+      // --- Calculate FPS for this thread ---
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds =
+          current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+
+      // --- Run Object Detection ---
+      std::vector<ObjDetectObservation> raw_observations;
+      m_ObjectDetector->detect(frame, raw_observations);
+
+      if (!raw_observations.empty() && m_intrinsics_loaded) {
+        ObjectDetectResult object_result;
+        object_result.timestamp = frame.timestamp;
+        object_result.camera_role = frame.cameraRole;
+        object_result.fps = smoothed_fps;
+
+        for (auto& obs : raw_observations) {
+          ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
+          object_result.observations.push_back(obs);
         }
-        std::stringstream ss;
-        ss << std::fixed << std::setprecision(2) << obs.confidence;
-        label += ": " + ss.str();
-        
-        // Put the label above the bounding box
-        int baseline;
-        cv::Size label_size = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.7, 2, &baseline);
-        cv::Point label_origin(tl.x, tl.y - 10 > 0 ? tl.y - 10 : tl.y + label_size.height);
-        cv::putText(setup_frame, label, label_origin, cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
+        m_object_detections.push(object_result);
       }
     }
-
-
-    std::vector<uchar> buf;
-    cv::imencode(".jpg", setup_frame, buf);
-    server.write(buf.data(), buf.size());
   }
 }
