@@ -84,6 +84,12 @@ Pipeline::Pipeline(const std::string& device_path,
 
   while (!FieldInterface::update());
 
+  m_frames_for_apriltag_detection.setMaxQueue(6);
+  m_frames_for_object_detection.setMaxQueue(2);
+
+  m_estimated_poses.setMaxQueue(3);
+  m_object_detections.setMaxQueue(1);
+
   m_output_publisher =
       std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
@@ -462,7 +468,7 @@ void Pipeline::object_detection_loop() {
         // --- Draw annotations and stream ONLY if in setup mode ---
         if (m_config_interface->isSetupMode() && m_annotated_cv_source) {
           // Use a copy to avoid drawing on the frame needed for other processing
-          cv::Mat annotated_frame = frame.frame.clone();
+          cv::UMat annotated_frame = frame.frame.getUMat(cv::ACCESS_READ).clone();
           const auto& class_names = m_ObjectDetector->getClassNames();
 
           for (size_t i = 0; i < raw_observations.size(); ++i) {
@@ -491,7 +497,11 @@ void Pipeline::object_detection_loop() {
                         cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
                         1);
           }
-          m_annotated_cv_source->PutFrame(annotated_frame);
+
+          cv::Mat annotated_frame_mat;
+          annotated_frame.copyTo(annotated_frame_mat);
+
+          m_annotated_cv_source->PutFrame(annotated_frame_mat);
         }
 
         if (!raw_observations.empty() && m_intrinsics_loaded) {
