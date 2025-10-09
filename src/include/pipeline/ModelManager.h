@@ -12,9 +12,9 @@ struct ObjectModel {
 // Define the global, constant list of all available models.
 inline const std::vector<ObjectModel> available_models = {
     // Index 0: Your primary model for reefscape objects
-    {"/usr/share/GompeiVision/reefscape_yolo11n-fp16.onnx",
-     "/usr/share/GompeiVision/reefscape.names"},
-    {"/usr/share/GompeiVision/reefscape_yolo11n.onnx",
-     "/usr/share/GompeiVision/reefscape.names"},
+    {"/usr/local/share/GompeiVision/reefscape_yolo11n-fp16.onnx",
+     "/usr/local/share/GompeiVision/reefscape.names"},
+    {"/usr/local/share/GompeiVision/reefscape_yolo11n.onnx",
+     "/usr/local/share/GompeiVision/reefscape.names"},
     // To add a new model, just add a new line here.
 };
