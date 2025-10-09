@@ -2,8 +2,19 @@
 
 #include <opencv2/core/mat.hpp>
 #include <vector>
+#include <frc/geometry/Pose3d.h>
 
 #include "util/QueuedObjectData.h"
+
+struct GamePieceData {
+    int class_id; 
+    double center_x;
+    double center_y;
+    double width;
+    double height;
+    double x_position;
+    double y_position;
+};
 
 /**
  * @class ObjectEstimator
@@ -31,4 +42,17 @@ class ObjectEstimator {
   static void calculate(ObjDetectObservation& observation,
                         const cv::Mat& cameraMatrix,
                         const cv::Mat& distCoeffs);
+
+  static void loadData(const std::string& path);
+
+ private:
+
+    static std::vector<GamePieceData> m_game_piece_data;
+    static bool m_data_loaded;
+
+    static std::vector<GamePieceData> find_matching_rows(const ObjDetectObservation& observation,
+                                                       int& used_tolerance,
+                                                       int start_tol = 25,
+                                                       int max_tol = 40,
+                                                       int step = 2);
 };

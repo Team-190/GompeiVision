@@ -3,6 +3,89 @@
 #include <cmath>
 #include <opencv2/calib3d.hpp>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <frc/geometry/Pose3d.h>
+#include <frc/geometry/Translation3d.h>
+#include <frc/geometry/Rotation3d.h>
+
+std::vector<GamePieceData> ObjectEstimator::m_game_piece_data;
+bool ObjectEstimator::m_data_loaded = false;
+
+void ObjectEstimator::loadData(const std::string& path) {
+    if (m_data_loaded) {
+        return;
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Could not open game piece data file: " << path << std::endl;
+        return;
+    }
+
+    m_game_piece_data.clear();
+    std::string line;
+    // Skip header
+    std::getline(file, line);
+
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string cell;
+        GamePieceData data;
+
+        std::getline(ss, cell, ',');
+        data.class_id = std::stoi(cell); // Load class_id
+        std::getline(ss, cell, ',');
+        data.center_x = std::stod(cell);
+        std::getline(ss, cell, ',');
+        data.center_y = std::stod(cell);
+        std::getline(ss, cell, ',');
+        data.width = std::stod(cell);
+        std::getline(ss, cell, ',');
+        data.height = std::stod(cell);
+        std::getline(ss, cell, ',');
+        data.x_position = std::stod(cell);
+        std::getline(ss, cell, ',');
+        data.y_position = std::stod(cell);
+
+        m_game_piece_data.push_back(data);
+    }
+    m_data_loaded = true;
+    std::cout << "Loaded " << m_game_piece_data.size() << " rows of game piece data." << std::endl;
+}
+
+std::vector<GamePieceData> ObjectEstimator::find_matching_rows(
+    const ObjDetectObservation& observation, int& used_tolerance,
+    int start_tol, int max_tol, int step) {
+    int tolerance = start_tol;
+    double target_center_x = observation.corner_pixels[0] + (observation.corner_pixels[2] - observation.corner_pixels[0]) / 2.0;
+    double target_center_y = observation.corner_pixels[1] + (observation.corner_pixels[7] - observation.corner_pixels[1]) / 2.0;
+    double target_width = observation.corner_pixels[2] - observation.corner_pixels[0];
+    double target_height = observation.corner_pixels[7] - observation.corner_pixels[1];
+
+    while (tolerance <= max_tol) {
+        std::vector<GamePieceData> filtered_data;
+        for (const auto& row : m_game_piece_data) {
+            // Add a check for the class_id
+            if (row.class_id == observation.obj_class &&
+                std::abs(row.center_x - target_center_x) <= tolerance &&
+                std::abs(row.center_y - target_center_y) <= tolerance &&
+                std::abs(row.width - target_width) <= tolerance &&
+                std::abs(row.height - target_height) <= tolerance) {
+                filtered_data.push_back(row);
+            }
+        }
+
+        if (!filtered_data.empty()) {
+            used_tolerance = tolerance;
+            return filtered_data;
+        }
+        tolerance += step;
+    }
+    used_tolerance = tolerance;
+    return {};
+}
 
 void ObjectEstimator::calculate(ObjDetectObservation& observation,
                                 const cv::Mat& cameraMatrix,
@@ -40,8 +123,32 @@ void ObjectEstimator::calculate(ObjDetectObservation& observation,
     observation.corner_angles.push_back(std::atan(vec.at<double>(1, 0))); // Angle Y
   }
 
-  // NOTE: Distance estimation is more complex for generic objects than for
-  // AprilTags. A simple method is to use the known width of the object and
-  // the camera's focal length. This is less accurate than solvePnP but is a
-  // common approach. You would add that logic here if needed.
+
+  // Estimate distance and pose (this part is now class-aware)
+  if (m_data_loaded) {
+    int used_tolerance = 0;
+    std::vector<GamePieceData> matching_rows = find_matching_rows(observation, used_tolerance);
+
+    if (!matching_rows.empty()) {
+        double avg_x = 0;
+        double avg_y = 0;
+        for (const auto& row : matching_rows) {
+            avg_x += row.x_position;
+            avg_y += row.y_position;
+        }
+        avg_x /= matching_rows.size();
+        avg_y /= matching_rows.size();
+
+        observation.pose = frc::Pose3d(
+            units::meter_t{avg_x},
+            units::meter_t{avg_y},
+            0_m,
+            frc::Rotation3d()
+        );
+        observation.distance = std::sqrt(avg_x * avg_x + avg_y * avg_y);
+
+    } else {
+        observation.distance = 0;
+    }
+  }
 }

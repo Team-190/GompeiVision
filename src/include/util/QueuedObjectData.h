@@ -3,6 +3,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <frc/geometry/Pose3d.h>
 
 /**
  * @struct ObjDetectObservation
@@ -14,6 +15,8 @@ struct ObjDetectObservation {
   double confidence;
   std::vector<double> corner_angles;
   std::vector<double> corner_pixels;
+  double distance;
+  frc::Pose3d pose;
 };
 
 // --- Main Result Data Packets ---

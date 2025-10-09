@@ -56,8 +56,8 @@ Pipeline::Pipeline(const std::string& device_path,
               << initial_model_index << "): " << selected_model.modelPath
               << std::endl;
 
-    m_ObjectDetector = std::make_unique<ObjectDetector>(
-        selected_model.modelPath, selected_model.namesPath);
+    m_ObjectDetector = std::make_unique<ObjectDetector>(selected_model.modelPath, selected_model.namesPath);
+    ObjectEstimator::loadData("/usr/share/GompeiVision/game_piece_simulation_data.csv");
     m_active_model_index = initial_model_index;  // Set the active index
   } else {
     std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
