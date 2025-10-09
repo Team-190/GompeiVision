@@ -29,16 +29,6 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     logInfo("ONNX model loaded successfully.");
     // Set backend and target for better performance (optional but recommended)
 
-    int blobType = CV_32F;  // default
-    std::vector<std::string> layerNames = m_net.getLayerNames();
-    if (!layerNames.empty()) {
-      int firstId = m_net.getLayerId(layerNames[0]);
-      cv::Ptr<cv::dnn::Layer> firstLayer = m_net.getLayer(firstId);
-      if (!firstLayer->blobs.empty()) {
-        blobType = firstLayer->blobs[0].type();  // CV_32F, CV_16F, etc.
-      }
-    }
-
     try {
       m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_INFERENCE_ENGINE);
     } catch (const cv::Exception& e) {
@@ -49,14 +39,13 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     try {
       // Try GPU (Iris Xe)
-      if (blobType == CV_16F) {
+      if (true) { // Assume FP16 for now
         m_net.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL_FP16);
         logInfo("Using OpenVINO GPU backend (FP16, OpenCL_FP16).");
       } else {
         m_net.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL);  // fallback FP32
         logInfo("Using OpenVINO GPU backend (FP32, OpenCL).");
       }
-      logInfo("Using OpenVINO GPU backend (OpenCL).");
     } catch (const cv::Exception& e) {
       logInfo("[WARN] GPU backend unavailable, using OpenVINO CPU backend.");
       m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
