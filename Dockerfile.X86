@@ -50,6 +50,21 @@ RUN apt-get update && apt-get install -y \
     file \
     && rm -rf /var/lib/apt/lists/*
 
+# =============================
+# Install Intel OpenVINO Runtime (for OpenCV DNN backend)
+# =============================
+RUN apt-get update && apt-get install -y wget gnupg2 lsb-release && \
+    wget -qO - https://apt.repos.intel.com/openvino/2024GPG-PUB-KEY | apt-key add - && \
+    echo "deb https://apt.repos.intel.com/openvino/2024 all main" | tee /etc/apt/sources.list.d/intel-openvino-2024.list && \
+    apt-get update && \
+    apt-get install -y openvino-runtime-2024.3.0 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set environment variable so OpenCV detects OpenVINO
+ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
+RUN echo "source /opt/intel/openvino/setupvars.sh > /dev/null 2>&1" >> /etc/bash.bashrc
+
+
 # Install any pip packages needed
 RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools
 
@@ -68,6 +83,7 @@ WORKDIR /opt/opencv/build
 RUN cmake -D CMAKE_BUILD_TYPE=RELEASE \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
+          -D WITH_OPENVINO=ON \
           -D BUILD_OPENCV_FEATURES2d=ON \
           -D BUILD_OPENCV_FLANN=ON \
           -D BUILD_EXAMPLES=OFF \

@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.21)
 project(GompeiVision VERSION 1.0 LANGUAGES CXX)
 
+# --- Set Architecture-Specific Compiler Optimizations ---
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+    # Apply optimizations for Intel x86_64 CPUs (like Alder Lake)
+    message(STATUS "x86_64 architecture detected. Applying Rapttor Lake optimizations (for intel 13th gen).")
+    add_compile_options(-O3 -march=core-avx2)
+
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    # Apply optimizations for 64-bit ARM CPUs (like Orange Pi)
+    message(STATUS "aarch64 architecture detected. Applying ARMv8-a optimizations.")
+    add_compile_options(-O3 -march=armv8-a)
+endif()
+
 # Explicitly generate compile_commands.json for IDEs
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

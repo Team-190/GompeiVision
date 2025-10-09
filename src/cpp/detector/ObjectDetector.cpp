@@ -28,7 +28,12 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
   } else {
     logInfo("ONNX model loaded successfully.");
     // Set backend and target for better performance (optional but recommended)
-    m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+    try {
+      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_INFERENCE_ENGINE);
+    } catch (const cv::Exception& e) {
+      std::cerr << "[WARN] OpenVINO backend unavailable, using default CPU backend.\n";
+      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+    }
     m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
   }
 }
