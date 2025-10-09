@@ -44,6 +44,7 @@ class Pipeline {
  private:
   void processing_loop();
   void networktables_loop();
+  void apriltag_detection_loop();
   void object_detection_loop();
 
   std::atomic<bool> m_is_running{false};
@@ -80,11 +81,13 @@ class Pipeline {
   // --- Pipeline Data Flow ---
   ThreadSafeQueue<AprilTagResult> m_estimated_poses;
   ThreadSafeQueue<ObjectDetectResult> m_object_detections;
+  ThreadSafeQueue<QueuedFrame> m_frames_for_apriltag_detection;
   ThreadSafeQueue<QueuedFrame> m_frames_for_object_detection;
 
   // Threads & Control
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
+  std::thread m_apriltag_thread;
   std::thread m_object_detection_thread;
 
   // --- NetworkTables Interface ---

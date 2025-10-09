@@ -1,5 +1,4 @@
 #include "pipeline/Pipeline.h"
-#include "pipeline/ModelManager.h"
 
 #include <cscore/cscore_cv.h>
 #include <httplib.h>
@@ -22,6 +21,7 @@
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
+#include "pipeline/ModelManager.h"
 #include "pipeline/PipelineHelper.h"
 
 Pipeline::Pipeline(const std::string& device_path,
@@ -48,16 +48,21 @@ Pipeline::Pipeline(const std::string& device_path,
   const int initial_model_index = m_config_interface->getModelIndex();
 
   // Validate the index
-  if (initial_model_index >= 0 && initial_model_index < available_models.size()) {
+  if (initial_model_index >= 0 &&
+      initial_model_index < available_models.size()) {
     const auto& selected_model = available_models[initial_model_index];
-    std::cout << "[" << m_role << "] Loading initial object detection model (index "
-              << initial_model_index << "): " << selected_model.modelPath << std::endl;
+    std::cout << "[" << m_role
+              << "] Loading initial object detection model (index "
+              << initial_model_index << "): " << selected_model.modelPath
+              << std::endl;
 
-    m_ObjectDetector = std::make_unique<ObjectDetector>(selected_model.modelPath, selected_model.namesPath);
+    m_ObjectDetector = std::make_unique<ObjectDetector>(
+        selected_model.modelPath, selected_model.namesPath);
     m_active_model_index = initial_model_index;  // Set the active index
   } else {
     std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
-              << initial_model_index << "). Object detection disabled." << std::endl;
+              << initial_model_index << "). Object detection disabled."
+              << std::endl;
   }
 
   m_camera = std::make_unique<Camera>(device_path, hardware_id, m_active_width,
@@ -113,6 +118,7 @@ void Pipeline::start() {
   m_is_running = true;
   m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
+  m_apriltag_thread = std::thread(&Pipeline::apriltag_detection_loop, this);
   m_object_detection_thread =
       std::thread(&Pipeline::object_detection_loop, this);
 }
@@ -127,11 +133,14 @@ void Pipeline::during() {
   if (new_model_index != m_active_model_index) {
     if (new_model_index >= 0 && new_model_index < available_models.size()) {
       const auto& new_model = available_models[new_model_index];
-      std::cout << "[" << m_role << "] Model index changed to " << new_model_index
-                << ". Reloading object detector with: " << new_model.modelPath << std::endl;
+      std::cout << "[" << m_role << "] Model index changed to "
+                << new_model_index
+                << ". Reloading object detector with: " << new_model.modelPath
+                << std::endl;
 
       // Replace the old detector with a new one
-      m_ObjectDetector = std::make_unique<ObjectDetector>(new_model.modelPath, new_model.namesPath);
+      m_ObjectDetector = std::make_unique<ObjectDetector>(new_model.modelPath,
+                                                          new_model.namesPath);
       m_active_model_index = new_model_index;  // Update the active index
     } else {
       std::cerr << "[" << m_role << "] ERROR: Received invalid model index ("
@@ -252,9 +261,11 @@ void Pipeline::during() {
 
       CS_Status annotated_status = 0;
       cs::SetSinkSource(m_annotated_mjpeg_server->GetHandle(),
-                        m_annotated_cv_source.get()->GetHandle(), &annotated_status);
+                        m_annotated_cv_source.get()->GetHandle(),
+                        &annotated_status);
 
-      std::cout << "[" << m_role << "] Annotated MJPEG stream available at port "
+      std::cout << "[" << m_role
+                << "] Annotated MJPEG stream available at port "
                 << m_stream_port + 1 << std::endl;
     }
 
@@ -276,10 +287,12 @@ void Pipeline::stop() {
 
   m_estimated_poses.shutdown();
   m_object_detections.shutdown();
+  m_frames_for_apriltag_detection.shutdown();
   m_frames_for_object_detection.shutdown();
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
+  if (m_apriltag_thread.joinable()) m_apriltag_thread.join();
   if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
@@ -288,77 +301,30 @@ void Pipeline::stop() {
 bool Pipeline::isRunning() const { return m_is_running; }
 
 void Pipeline::processing_loop() {
-  auto last_time = std::chrono::steady_clock::now();
-  double smoothed_fps = 0.0;
-
   QueuedFrame frame;
   std::chrono::time_point<std::chrono::system_clock> timestamp;
 
   while (m_is_running) {
-    bool frame_was_captured = false;
-
     if (m_camera) {
-      // The definitive test for a camera connection is whether we can get a
-      // frame.
       if (m_camera->getFrame(frame.frame, timestamp)) {
         frame.cameraRole = m_role;
         frame.timestamp = timestamp;
-        frame_was_captured = true;
+
+        if (m_config_interface->isSetupMode() && m_cv_source) {
+          m_cv_source->PutFrame(frame.frame);
+        }
+
+        // Push the frame to both processing queues
+        m_frames_for_apriltag_detection.push(frame);
+        if (m_ObjectDetector) {
+          m_frames_for_object_detection.push(frame);
+        }
+
       } else {
-        // If getting a frame fails, the camera is considered disconnected.
-        // Attempt to reconnect for the next cycle.
         m_camera->attemptReconnect();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
       }
-    }
-
-    // Update the shared connection status flag once per loop iteration.
-    if (frame_was_captured) {
-      // --- Frame processing continues only if a frame was captured ---
-      constexpr double alpha = 0.05;
-
-      if (m_config_interface->isSetupMode() && m_cv_source) {
-        m_cv_source->PutFrame(frame.frame);
-      }
-
-      // --- AprilTag Processing ---
-      FiducialImageObservation frame_observation;
-      frame_observation.timestamp = timestamp;
-
-      m_AprilTagDetector.detect(frame, frame_observation);
-
-      auto current_time = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
-      last_time = current_time;
-      const double instant_fps = 1.0 / elapsed_seconds.count();
-      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
-
-      if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
-        AprilTagResult apriltag_result;
-        apriltag_result.timestamp = frame_observation.timestamp;
-        apriltag_result.camera_role = m_role;
-        constexpr double tag_size_m = 0.1651;
-
-        cv::Mat cameraMatrix = m_camera_matrix.clone();
-        cv::Mat distCoeffs = m_dist_coeffs.clone();
-
-        CameraPoseEstimator::estimatePose(frame_observation, apriltag_result,
-                                          cameraMatrix, distCoeffs, tag_size_m,
-                                          FieldInterface::getMap());
-
-        TagAngleCalculator::calculate(frame_observation, apriltag_result,
-                                      cameraMatrix, distCoeffs, tag_size_m);
-
-        apriltag_result.fps = smoothed_fps;
-        m_estimated_poses.push(apriltag_result);
-      }
-
-      // --- Object Detection Processing (Push to NEW Thread) ---
-      if (m_ObjectDetector) {
-        m_frames_for_object_detection.push(frame);
-      }
-
     } else {
-      // If no frame was captured, wait a moment before the next attempt.
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
@@ -393,6 +359,48 @@ void Pipeline::networktables_loop() {
   }
 }
 
+void Pipeline::apriltag_detection_loop() {
+  auto last_time = std::chrono::steady_clock::now();
+  double smoothed_fps = 0.0;
+  constexpr double alpha = 0.05;
+
+  QueuedFrame frame;
+  while (m_is_running) {
+    if (m_frames_for_apriltag_detection.waitAndPop(frame)) {
+      FiducialImageObservation frame_observation;
+      frame_observation.timestamp = frame.timestamp;
+
+      m_AprilTagDetector.detect(frame, frame_observation);
+
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+
+      if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
+        AprilTagResult apriltag_result;
+        apriltag_result.timestamp = frame_observation.timestamp;
+        apriltag_result.camera_role = m_role;
+        constexpr double tag_size_m = 0.1651;
+
+        cv::Mat cameraMatrix = m_camera_matrix.clone();
+        cv::Mat distCoeffs = m_dist_coeffs.clone();
+
+        CameraPoseEstimator::estimatePose(frame_observation, apriltag_result,
+                                          cameraMatrix, distCoeffs, tag_size_m,
+                                          FieldInterface::getMap());
+
+        TagAngleCalculator::calculate(frame_observation, apriltag_result,
+                                      cameraMatrix, distCoeffs, tag_size_m);
+
+        apriltag_result.fps = smoothed_fps;
+        m_estimated_poses.push(apriltag_result);
+      }
+    }
+  }
+}
+
 void Pipeline::object_detection_loop() {
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
@@ -404,15 +412,14 @@ void Pipeline::object_detection_loop() {
     if (m_frames_for_object_detection.waitAndPop(frame)) {
       // --- Calculate FPS for this thread ---
       auto current_time = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds =
-          current_time - last_time;
+      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
       last_time = current_time;
       const double instant_fps = 1.0 / elapsed_seconds.count();
       smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
       // --- Run Object Detection ---
       std::vector<ObjDetectObservation> raw_observations;
-      std::vector<cv::Rect> detected_boxes; // To store the boxes
+      std::vector<cv::Rect> detected_boxes;  // To store the boxes
       m_ObjectDetector->detect(frame, raw_observations, detected_boxes);
 
       // --- Draw annotations and stream ONLY if in setup mode ---
@@ -430,19 +437,22 @@ void Pipeline::object_detection_loop() {
 
           // Create the label text
           std::string label = class_names[obs.obj_class] + ": " +
-                            cv::format("%.2f", obs.confidence);
+                              cv::format("%.2f", obs.confidence);
 
           int baseLine;
-          cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+          cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX,
+                                               0.5, 1, &baseLine);
           int top = std::max(box.y, labelSize.height);
 
           // Draw a filled background for the label
-          cv::rectangle(annotated_frame, cv::Point(box.x, top - labelSize.height),
+          cv::rectangle(annotated_frame,
+                        cv::Point(box.x, top - labelSize.height),
                         cv::Point(box.x + labelSize.width, top + baseLine),
                         cv::Scalar(0, 0, 0), cv::FILLED);
           // Draw the label text
           cv::putText(annotated_frame, label, cv::Point(box.x, top),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+                      cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
+                      1);
         }
         m_annotated_cv_source->PutFrame(annotated_frame);
       }
