@@ -58,6 +58,5 @@ void ObjectEstimator::loadData(const std::string& path) {
 std::vector<GamePieceData> ObjectEstimator::find_matching_rows( //TODO: Fix later
     const ObjDetectObservation& observation, int& used_tolerance,
     int start_tol, int max_tol, int step) {
-            observation.distance = -9;
-            return;
+            return {};
 }
