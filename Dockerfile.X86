@@ -48,21 +48,27 @@ RUN apt-get update && apt-get install -y \
     libswscale-dev \
     libzstd-dev \
     file \
+    gnupg \
+    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # =============================
 # Install Intel OpenVINO Runtime (for OpenCV DNN backend)
 # =============================
-RUN apt-get update && apt-get install -y wget gnupg2 lsb-release && \
-    wget -qO - https://apt.repos.intel.com/openvino/2024GPG-PUB-KEY | apt-key add - && \
-    echo "deb https://apt.repos.intel.com/openvino/2024 all main" | tee /etc/apt/sources.list.d/intel-openvino-2024.list && \
-    apt-get update && \
-    apt-get install -y openvino-runtime-2024.3.0 && \
-    rm -rf /var/lib/apt/lists/*
 
-# Set environment variable so OpenCV detects OpenVINO
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+RUN gpg --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+RUN echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | tee /etc/apt/sources.list.d/intel-openvino.list
+
+RUN apt update
+RUN apt-cache search openvino
+RUN apt install -y openvino
+RUN apt list --installed | grep openvino
+
+# Set up OpenVINO environment (optional for runtime path)
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
-RUN echo "source /opt/intel/openvino/setupvars.sh > /dev/null 2>&1" >> /etc/bash.bashrc
+RUN echo "source /opt/intel/openvino/setupvars.sh" >> /etc/bash.bashrc
 
 
 # Install any pip packages needed
