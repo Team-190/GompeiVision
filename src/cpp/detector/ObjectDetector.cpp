@@ -21,14 +21,6 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
   }
 
   // --- Load ONNX Neural Network Model ---
-  m_net = cv::dnn::readNet(model_path);
-  if (m_net.empty()) {
-    logError("Failed to load object detection model from: " + model_path);
-  } else {
-    logInfo("ONNX model loaded successfully.");
-    // Set backend and target for better performance (optional but recommended)
-
-    // --- Load Neural Network Model ---
 #ifdef USE_OPENVINO
     // --- Use OpenVINO Runtime on x86 ---
     logInfo("Using OpenVINO runtime.");
@@ -63,7 +55,6 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
       m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
     }
 #endif
-  }
 }
 
 ObjectDetector::~ObjectDetector() { logInfo("Shutting down..."); }

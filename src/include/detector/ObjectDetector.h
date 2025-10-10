@@ -5,9 +5,10 @@
 
 #ifdef USE_OPENVINO
 #include <openvino/openvino.hpp>
+#else
+#include <opencv2/dnn.hpp>
 #endif
 
-#include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include "util/QueuedFrame.h"
