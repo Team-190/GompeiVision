@@ -4,7 +4,7 @@ project(GompeiVision VERSION 1.0 LANGUAGES CXX)
 # --- Set Architecture-Specific Compiler Optimizations ---
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     # Apply optimizations for Intel x86_64 CPUs (like Alder Lake)
-    message(STATUS "x86_64 architecture detected. Applying Rapttor Lake optimizations (for intel 13th gen).")
+    message(STATUS "x86_64 architecture detected. Applying Raptor Lake optimizations (for intel 13th gen).")
     add_compile_options(-O3 -march=core-avx2)
 
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")

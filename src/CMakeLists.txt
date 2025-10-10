@@ -68,7 +68,7 @@ target_link_libraries(GompeiVisionProcess PRIVATE
 )
 
 if(USE_OPENVINO)
-    target_link_libraries(GompeiVisionProcess PRIVATE openvino::runtime)
+    target_link_libraries(GompeiVisionProcess PRIVATE openvino::openvino)
 endif()
 
 # --- Installation ---
