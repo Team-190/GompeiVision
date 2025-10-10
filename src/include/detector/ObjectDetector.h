@@ -1,8 +1,13 @@
 #pragma once
 
-#include <opencv2/dnn.hpp>
 #include <string>
 #include <vector>
+
+#ifdef USE_OPENVINO
+#include <openvino/openvino.hpp>
+#else
+#include <opencv2/dnn.hpp>
+#endif
 
 #include "util/QueuedFrame.h"
 #include "util/QueuedObjectData.h"

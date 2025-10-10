@@ -67,6 +67,10 @@ target_link_libraries(GompeiVisionProcess PRIVATE
         third_party_libs
 )
 
+if(USE_OPENVINO)
+    target_link_libraries(GompeiVisionProcess PRIVATE openvino::runtime)
+endif()
+
 # --- Installation ---
 # CRITICAL: Install BOTH executables into the same 'bin' directory.
 # This ensures the manager can find the worker using a relative path.
