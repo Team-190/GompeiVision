@@ -63,8 +63,7 @@ RUN echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | tee /etc/apt
 
 RUN apt update
 RUN apt-cache search openvino
-RUN apt install -y openvino openvino-dev
-RUN apt install -y intel-opencl-icd
+RUN apt install -y openvino intel-opencl-icd
 
 # Set up OpenVINO environment (optional for runtime path)
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
