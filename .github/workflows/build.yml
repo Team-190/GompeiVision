@@ -63,6 +63,14 @@ jobs:
             -w /work \
             ${{ steps.meta.outputs.tags }} \
             /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
+      
+      - name: Upload CPack Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpack-log-amd64
+          path: ${{ github.workspace }}/build/_CPack_Packages/Linux/DEB/PreinstallOutput.log
+          retention-days: 7
 
       - name: List files for debugging
         run: ls -laR ./build
@@ -133,6 +141,14 @@ jobs:
             -w /work \
             ${{ steps.meta.outputs.tags }} \
             /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
+
+      - name: Upload CPack Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpack-log-arm64
+          path: ${{ github.workspace }}/build/_CPack_Packages/Linux/DEB/PreinstallOutput.log
+          retention-days: 7
 
       - name: List files for debugging
         run: ls -laR ./build
