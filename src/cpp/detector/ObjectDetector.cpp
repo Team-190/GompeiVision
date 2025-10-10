@@ -29,27 +29,41 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     logInfo("ONNX model loaded successfully.");
     // Set backend and target for better performance (optional but recommended)
 
+    // --- Load Neural Network Model ---
+#ifdef USE_OPENVINO
+    // --- Use OpenVINO Runtime on x86 ---
+    logInfo("Using OpenVINO runtime.");
     try {
-      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_INFERENCE_ENGINE);
-    } catch (const cv::Exception& e) {
-      std::cerr << "[WARN] OpenVINO backend unavailable, using default CPU "
-                   "backend.\n";
-      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+      // Load the model from the .onnx file
+      auto model = m_core.read_model(model_path);
+
+      // --- Preprocessing (move here later) ---
+      // Can build preprocessing steps into the model here
+      // For now, handle resizing in the detect loop.
+
+      // Compile the model for the optimal device (e.g., CPU, GPU)
+      // 'AUTO' lets OpenVINO choose the best available device.
+      m_compiled_model = m_core.compile_model(model, "AUTO");
+      logInfo("OpenVINO model compiled successfully for AUTO device.");
+
+    } catch (const ov::Exception& e) {
+      logError("OpenVINO exception: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+      logError("Standard exception: " + std::string(e.what()));
     }
 
-    try {
-      // Try GPU (Iris Xe)
-      if (true) { // Assume FP16 for now
-        m_net.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL_FP16);
-        logInfo("Using OpenVINO GPU backend (FP16, OpenCL_FP16).");
-      } else {
-        m_net.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL);  // fallback FP32
-        logInfo("Using OpenVINO GPU backend (FP32, OpenCL).");
-      }
-    } catch (const cv::Exception& e) {
-      logInfo("[WARN] GPU backend unavailable, using OpenVINO CPU backend.");
+#else
+    // --- Use OpenCV DNN on ARM ---
+    m_net = cv::dnn::readNet(model_path);
+    if (m_net.empty()) {
+      logError("Failed to load object detection model from: " + model_path);
+    } else {
+      logInfo("ONNX model loaded successfully with OpenCV DNN.");
+      // Set backend for ARM
+      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
       m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
     }
+#endif
   }
 }
 
@@ -61,6 +75,88 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
                             std::vector<int>& final_class_ids,
                             std::vector<float>& final_confidences) {
 
+#ifdef USE_OPENVINO
+  if (q_frame.frame.empty() || !m_compiled_model) {
+    return;
+  }
+  // --- 1. Create Inference Request ---
+  ov::InferRequest infer_request = m_compiled_model.create_infer_request();
+
+  // --- 2. Preprocess and Set Input Tensor ---
+  // Get the model's input port and shape
+  auto input_port = m_compiled_model.input();
+  const ov::Shape input_shape = input_port.get_shape();
+  const size_t input_height = input_shape[2];
+  const size_t input_width = input_shape[3];
+
+  // Resize the frame to match the model's input size
+  cv::Mat resized_frame;
+  cv::resize(q_frame.frame, resized_frame, cv::Size(input_width, input_height));
+
+  // Convert to float and normalize
+  cv::Mat float_frame;
+  resized_frame.convertTo(float_frame, CV_32F, 1.0 / 255.0);
+  
+  // Create an OpenVINO tensor from the preprocessed cv::Mat data
+  // This tensor will share data with the cv::Mat, avoiding a copy
+  ov::Tensor input_tensor(input_port.get_element_type(), input_shape, float_frame.data);
+
+  infer_request.set_input_tensor(input_tensor);
+
+  // --- 3. Perform Inference ---
+  infer_request.infer();
+
+  // --- 4. Post-process Results ---
+  const ov::Tensor& output_tensor = infer_request.get_output_tensor();
+  const float* detections = output_tensor.data<const float>();
+
+  // The output shape for YOLOv8 is [1, 84, 8400]
+  // where 84 = 4 (bbox) + 80 (class scores)
+  // We need to process this flat data structure.
+  const int num_classes = m_class_names.size();
+  const int elements_per_detection = num_classes + 4; // 4 for bbox
+  const int num_detections = output_tensor.get_shape()[2];
+
+  float x_factor = q_frame.frame.cols / m_input_width;
+  float y_factor = q_frame.frame.rows / m_input_height;
+
+  std::vector<int> class_ids;
+  std::vector<float> confidences;
+  std::vector<cv::Rect> boxes;
+  
+  // Transpose the data from [1, 84, 8400] to [1, 8400, 84] for easier iteration
+  cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F, (void*)detections);
+  cv::Mat detections_mat = output_matrix.t();
+
+
+  for (int i = 0; i < detections_mat.rows; ++i) {
+    // For each detection, find the class with the highest score
+    cv::Mat classes_scores = detections_mat.row(i).colRange(4, 4 + num_classes);
+    cv::Point class_id_point;
+    double max_class_score;
+    cv::minMaxLoc(classes_scores, 0, &max_class_score, 0, &class_id_point);
+
+    if (max_class_score > m_confidence_threshold) {
+      confidences.push_back(max_class_score);
+      class_ids.push_back(class_id_point.x);
+
+      // Extract bounding box coordinates (center_x, center_y, width, height)
+      float cx = detections_mat.at<float>(i, 0);
+      float cy = detections_mat.at<float>(i, 1);
+      float w = detections_mat.at<float>(i, 2);
+      float h = detections_mat.at<float>(i, 3);
+
+      // Convert from center coordinates to top-left corner
+      int left = static_cast<int>((cx - 0.5 * w) * x_factor);
+      int top = static_cast<int>((cy - 0.5 * h) * y_factor);
+      int width = static_cast<int>(w * x_factor);
+      int height = static_cast<int>(h * y_factor);
+      boxes.emplace_back(left, top, width, height);
+    }
+  }
+
+#else
+  // --- ARM IMPLEMENTATION (Original OpenCV DNN) ---
   if (q_frame.frame.empty() || m_net.empty()) {
     return;
   }
@@ -126,6 +222,7 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
       boxes.emplace_back(left, top, width, height);
     }
   }
+#endif
 
   // Apply Non-Maximum Suppression to filter out overlapping boxes
   std::vector<int> nms_result;
@@ -155,7 +252,6 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
         static_cast<double>(box.br().y), static_cast<double>(box.tl().x),
         static_cast<double>(box.br().y));
   }
-
 }
 
 void ObjectDetector::logInfo(const std::string& message) const {

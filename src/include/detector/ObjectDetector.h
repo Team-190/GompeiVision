@@ -32,7 +32,8 @@ class ObjectDetector {
    * @brief Detects all objects in a given frame.
    * @param frame The input image from the camera.
    * @param observations A reference to the result object to be populated.
-   * @param final_boxes A vector to be populated with the cv::Rect for each observation.
+   * @param final_boxes A vector to be populated with the cv::Rect for each
+   * observation.
    */
   void detect(const QueuedFrame& frame,
               std::vector<ObjDetectObservation>& observations,
@@ -46,12 +47,16 @@ class ObjectDetector {
    */
   const std::vector<std::string>& getClassNames() const;
 
-
  private:
   void logInfo(const std::string& message) const;
   void logError(const std::string& message) const;
 
+#ifdef USE_OPENVINO
+  ov::Core m_core;
+  ov::CompiledModel m_compiled_model;
+#else
   cv::dnn::Net m_net;
+#endif
   std::vector<std::string> m_class_names;
 
   // MODEL PARAMETERS
