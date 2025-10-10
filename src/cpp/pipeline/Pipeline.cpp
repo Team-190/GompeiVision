@@ -23,6 +23,7 @@
 #include "io/OutputPublisher.h"
 #include "pipeline/ModelManager.h"
 #include "pipeline/PipelineHelper.h"
+#include "util/AnnotationData.h"
 
 Pipeline::Pipeline(const std::string& device_path,
                    const std::string& hardware_id, const int stream_port,
@@ -88,6 +89,7 @@ Pipeline::Pipeline(const std::string& device_path,
 
   m_frames_for_apriltag_detection.setMaxQueue(6);
   m_frames_for_object_detection.setMaxQueue(1);
+  m_frames_for_annotation.setMaxQueue(1);
 
   m_estimated_poses.setMaxQueue(3);
   m_object_detections.setMaxQueue(1);
@@ -192,6 +194,9 @@ void Pipeline::during() {
 
   if (m_config_interface->isSetupMode()) {
     // --- We are in Setup Mode ---
+    if (!m_annotation_thread.joinable()) {
+      m_annotation_thread = std::thread(&Pipeline::annotation_loop, this);
+    }
 
     const int new_width = m_config_interface->getWidth();
     const int new_height = m_config_interface->getHeight();
@@ -279,6 +284,12 @@ void Pipeline::during() {
 
   } else {
     // --- We are NOT in Setup Mode ---
+
+    if (m_annotation_thread.joinable()) {
+      m_frames_for_annotation.shutdown(); 
+      m_annotation_thread.join();          
+    }
+
     if (!m_config_interface->isSetupMode() && m_mjpeg_server)
       std::cout << "[" << m_role << "] Setup mode disabled. Stopping servers."
                 << std::endl;
@@ -297,11 +308,14 @@ void Pipeline::stop() {
   m_object_detections.shutdown();
   m_frames_for_apriltag_detection.shutdown();
   m_frames_for_object_detection.shutdown();
+  m_frames_for_annotation.shutdown();
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
   if (m_apriltag_thread.joinable()) m_apriltag_thread.join();
   if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
+  if (m_annotation_thread.joinable()) m_annotation_thread.join();
+
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
@@ -427,46 +441,20 @@ void Pipeline::object_detection_loop() {
 
       // --- Run Object Detection ---
       std::vector<ObjDetectObservation> raw_observations;
-      std::vector<cv::Rect> detected_boxes;  // To store the boxes
-      m_ObjectDetector->detect(frame, raw_observations, detected_boxes);
+      std::vector<cv::Rect> detected_boxes;
+      std::vector<int> detected_class_ids;
+      std::vector<float> detected_confidences;
+      m_ObjectDetector->detect(frame, raw_observations, detected_boxes,
+                               detected_class_ids, detected_confidences);
 
-      // --- Draw annotations and stream ONLY if in setup mode ---
+      // --- Offload annotation to the dedicated thread ---
       if (m_config_interface->isSetupMode() && m_annotated_cv_source) {
-        // Use a copy to avoid drawing on the frame needed for other processing
-        cv::UMat annotated_frame = frame.frame.getUMat(cv::ACCESS_READ).clone();
-        const auto& class_names = m_ObjectDetector->getClassNames();
-
-        for (size_t i = 0; i < raw_observations.size(); ++i) {
-          const auto& obs = raw_observations[i];
-          const auto& box = detected_boxes[i];
-
-          // Draw the rectangle
-          cv::rectangle(annotated_frame, box, cv::Scalar(0, 255, 0), 2);
-
-          // Create the label text
-          std::string label = class_names[obs.obj_class] + ": " +
-                              cv::format("%.2f", obs.confidence);
-
-          int baseLine;
-          cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX,
-                                               0.5, 1, &baseLine);
-          int top = std::max(box.y, labelSize.height);
-
-          // Draw a filled background for the label
-          cv::rectangle(annotated_frame,
-                        cv::Point(box.x, top - labelSize.height),
-                        cv::Point(box.x + labelSize.width, top + baseLine),
-                        cv::Scalar(0, 0, 0), cv::FILLED);
-          // Draw the label text
-          cv::putText(annotated_frame, label, cv::Point(box.x, top),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
-                      1);
-        }
-
-        cv::Mat annotated_frame_mat;
-        annotated_frame.copyTo(annotated_frame_mat);
-
-        m_annotated_cv_source->PutFrame(annotated_frame_mat);
+        AnnotationData data;
+        data.q_frame = frame;
+        data.boxes = detected_boxes;
+        data.class_ids = detected_class_ids;
+        data.confidences = detected_confidences;
+        m_frames_for_annotation.push(data);
       }
 
       if (!raw_observations.empty() && m_intrinsics_loaded) {
@@ -480,6 +468,49 @@ void Pipeline::object_detection_loop() {
           object_result.observations.push_back(obs);
         }
         m_object_detections.push(object_result);
+      }
+    }
+  }
+}
+
+void Pipeline::annotation_loop() {
+  AnnotationData data;
+  while (m_is_running) {
+    if (m_frames_for_annotation.waitAndPop(data)) {
+      cv::UMat annotated_frame =
+          data.q_frame.frame.getUMat(cv::ACCESS_READ).clone();
+      const auto& class_names = m_ObjectDetector->getClassNames();
+
+      for (size_t i = 0; i < data.boxes.size(); ++i) {
+        const auto& box = data.boxes[i];
+        const auto& class_id = data.class_ids[i];
+        const auto& confidence = data.confidences[i];
+
+        // Draw the rectangle
+        cv::rectangle(annotated_frame, box, cv::Scalar(0, 255, 0), 2);
+
+        // --- THIS IS THE RESTORED LABEL DRAWING CODE ---
+        std::string label =
+            class_names[class_id] + ": " + cv::format("%.2f", confidence);
+
+        int baseLine;
+        cv::Size labelSize =
+            cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        int top = std::max(box.y, labelSize.height);
+
+        cv::rectangle(annotated_frame, cv::Point(box.x, top - labelSize.height),
+                      cv::Point(box.x + labelSize.width, top + baseLine),
+                      cv::Scalar(0, 0, 0), cv::FILLED);
+        cv::putText(annotated_frame, label, cv::Point(box.x, top),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
+                    1);
+      }
+
+      cv::Mat annotated_frame_mat;
+      annotated_frame.copyTo(annotated_frame_mat);
+
+      if (m_annotated_cv_source) {
+        m_annotated_cv_source->PutFrame(annotated_frame_mat);
       }
     }
   }

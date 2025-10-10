@@ -57,7 +57,10 @@ ObjectDetector::~ObjectDetector() { logInfo("Shutting down..."); }
 
 void ObjectDetector::detect(const QueuedFrame& q_frame,
                             std::vector<ObjDetectObservation>& observations,
-                            std::vector<cv::Rect>& final_boxes) {
+                            std::vector<cv::Rect>& final_boxes,
+                            std::vector<int>& final_class_ids,
+                            std::vector<float>& final_confidences) {
+
   if (q_frame.frame.empty() || m_net.empty()) {
     return;
   }
@@ -129,26 +132,30 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   cv::dnn::NMSBoxes(boxes, confidences, m_confidence_threshold, m_nms_threshold,
                     nms_result);
 
-  // Clear output vectors before populating
   observations.clear();
   final_boxes.clear();
+  final_class_ids.clear();
+  final_confidences.clear();
+
+  observations.reserve(nms_result.size());
+  final_boxes.reserve(nms_result.size());
+  final_class_ids.reserve(nms_result.size());
+  final_confidences.reserve(nms_result.size());
 
   for (int idx : nms_result) {
-    ObjDetectObservation obs;
-    obs.obj_class = class_ids[idx];
-    obs.confidence = confidences[idx];
-
     const auto& box = boxes[idx];
-    // Define the 4 corners of the bounding box
-    obs.corner_pixels = {
-        (double)box.tl().x, (double)box.tl().y,  // Top-Left
-        (double)box.br().x, (double)box.tl().y,  // Top-Right
-        (double)box.br().x, (double)box.br().y,  // Bottom-Right
-        (double)box.tl().x, (double)box.br().y   // Bottom-Left
-    };
-    observations.push_back(obs);
-    final_boxes.push_back(box);  // Populate the final boxes vector
+    final_boxes.push_back(box);
+    final_class_ids.push_back(class_ids[idx]);
+    final_confidences.push_back(confidences[idx]);
+
+    observations.emplace_back(
+        class_ids[idx], confidences[idx], static_cast<double>(box.tl().x),
+        static_cast<double>(box.tl().y), static_cast<double>(box.br().x),
+        static_cast<double>(box.tl().y), static_cast<double>(box.br().x),
+        static_cast<double>(box.br().y), static_cast<double>(box.tl().x),
+        static_cast<double>(box.br().y));
   }
+
 }
 
 void ObjectDetector::logInfo(const std::string& message) const {

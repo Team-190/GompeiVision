@@ -21,6 +21,7 @@
 #include "util/QueuedObjectData.h"  
 #include "util/ThreadSafeQueue.h"
 #include "util/QueuedFrame.h"
+#include "util/AnnotationData.h"
 
 
 struct UdevContextDeleter {
@@ -46,6 +47,7 @@ class Pipeline {
   void networktables_loop();
   void apriltag_detection_loop();
   void object_detection_loop();
+  void annotation_loop();
 
   std::atomic<bool> m_is_running{false};
 
@@ -83,12 +85,14 @@ class Pipeline {
   ThreadSafeQueue<ObjectDetectResult> m_object_detections;
   ThreadSafeQueue<QueuedFrame> m_frames_for_apriltag_detection;
   ThreadSafeQueue<QueuedFrame> m_frames_for_object_detection;
+  ThreadSafeQueue<AnnotationData> m_frames_for_annotation;
 
   // Threads & Control
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
   std::thread m_apriltag_thread;
   std::thread m_object_detection_thread;
+  std::thread m_annotation_thread;
 
   // --- NetworkTables Interface ---
   std::unique_ptr<ConfigInterface> m_config_interface;
