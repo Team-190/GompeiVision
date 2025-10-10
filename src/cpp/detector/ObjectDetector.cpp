@@ -2,7 +2,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <opencv2/imgproc.hpp>
 #include <vector>
 
 ObjectDetector::ObjectDetector(const std::string& model_path,
