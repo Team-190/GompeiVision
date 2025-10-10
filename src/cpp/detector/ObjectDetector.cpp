@@ -74,6 +74,9 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
                             std::vector<cv::Rect>& final_boxes,
                             std::vector<int>& final_class_ids,
                             std::vector<float>& final_confidences) {
+  std::vector<int> class_ids;
+  std::vector<float> confidences;
+  std::vector<cv::Rect> boxes;
 
 #ifdef USE_OPENVINO
   if (q_frame.frame.empty() || !m_compiled_model) {
@@ -96,10 +99,11 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   // Convert to float and normalize
   cv::Mat float_frame;
   resized_frame.convertTo(float_frame, CV_32F, 1.0 / 255.0);
-  
+
   // Create an OpenVINO tensor from the preprocessed cv::Mat data
   // This tensor will share data with the cv::Mat, avoiding a copy
-  ov::Tensor input_tensor(input_port.get_element_type(), input_shape, float_frame.data);
+  ov::Tensor input_tensor(input_port.get_element_type(), input_shape,
+                          float_frame.data);
 
   infer_request.set_input_tensor(input_tensor);
 
@@ -114,20 +118,16 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   // where 84 = 4 (bbox) + 80 (class scores)
   // We need to process this flat data structure.
   const int num_classes = m_class_names.size();
-  const int elements_per_detection = num_classes + 4; // 4 for bbox
+  const int elements_per_detection = num_classes + 4;  // 4 for bbox
   const int num_detections = output_tensor.get_shape()[2];
 
   float x_factor = q_frame.frame.cols / m_input_width;
   float y_factor = q_frame.frame.rows / m_input_height;
 
-  std::vector<int> class_ids;
-  std::vector<float> confidences;
-  std::vector<cv::Rect> boxes;
-  
   // Transpose the data from [1, 84, 8400] to [1, 8400, 84] for easier iteration
-  cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F, (void*)detections);
+  cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F,
+                        (void*)detections);
   cv::Mat detections_mat = output_matrix.t();
-
 
   for (int i = 0; i < detections_mat.rows; ++i) {
     // For each detection, find the class with the highest score
@@ -169,13 +169,13 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
 
   // --- 2. Perform Inference ---
   m_net.setInput(blob);
-  
+
   std::vector<cv::Mat> outs;
   m_net.forward(outs, m_net.getUnconnectedOutLayersNames());
-    
+
   if (outs.empty()) {
     logError("Inference failed: model returned no outputs.");
-    return; // Exit the detect function early
+    return;  // Exit the detect function early
   }
 
   // --- 3. Post-process Results for YOLOv8/v11 ---
@@ -191,10 +191,6 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
 
   float x_factor = q_frame.frame.cols / m_input_width;
   float y_factor = q_frame.frame.rows / m_input_height;
-
-  std::vector<int> class_ids;
-  std::vector<float> confidences;
-  std::vector<cv::Rect> boxes;
 
   for (int i = 0; i < detections.rows; ++i) {
     // For each detection, find the class with the highest score
