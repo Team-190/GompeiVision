@@ -56,8 +56,10 @@ Pipeline::Pipeline(const std::string& device_path,
               << initial_model_index << "): " << selected_model.modelPath
               << std::endl;
 
-    m_ObjectDetector = std::make_unique<ObjectDetector>(selected_model.modelPath, selected_model.namesPath);
-    ObjectEstimator::loadData("/usr/local/share/GompeiVision/reefscape_pose_estimation.csv");
+    m_ObjectDetector = std::make_unique<ObjectDetector>(
+        selected_model.modelPath, selected_model.namesPath);
+    ObjectEstimator::loadData(
+        "/usr/local/share/GompeiVision/reefscape_pose_estimation.csv");
     m_active_model_index = initial_model_index;  // Set the active index
   } else {
     std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
@@ -85,7 +87,7 @@ Pipeline::Pipeline(const std::string& device_path,
   while (!FieldInterface::update());
 
   m_frames_for_apriltag_detection.setMaxQueue(6);
-  m_frames_for_object_detection.setMaxQueue(2);
+  m_frames_for_object_detection.setMaxQueue(1);
 
   m_estimated_poses.setMaxQueue(3);
   m_object_detections.setMaxQueue(1);
@@ -412,110 +414,72 @@ void Pipeline::object_detection_loop() {
   double smoothed_fps = 0.0;
   constexpr double alpha = 0.05;
 
-  // --- Intelligent Frame Skipping Variables ---
-  const int FRAME_SKIP_FACTOR = 5; // Max frames to skip
-  const double MOTION_THRESHOLD = 0.075; // 7.7% motion threshold
-  int frames_to_skip = 0;
-  cv::Mat prev_gray_frame;
-
   QueuedFrame frame;
   while (m_is_running) {
     // Wait for a frame to become available
     if (m_frames_for_object_detection.waitAndPop(frame)) {
-      bool run_detection = false;
-      cv::Mat gray_frame;
-      cv::cvtColor(frame.frame, gray_frame, cv::COLOR_BGR2GRAY);
+      // --- Calculate FPS for this thread ---
+      auto current_time = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
+      last_time = current_time;
+      const double instant_fps = 1.0 / elapsed_seconds.count();
+      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
 
-      // --- Motion Detection Logic ---
-      if (frames_to_skip > 0 && !prev_gray_frame.empty()) {
-        cv::Mat frame_diff;
-        cv::absdiff(gray_frame, prev_gray_frame, frame_diff);
-        cv::threshold(frame_diff, frame_diff, 30, 255, cv::THRESH_BINARY);
-        int changed_pixels = cv::countNonZero(frame_diff);
-        double motion_percent = static_cast<double>(changed_pixels) / (frame.frame.rows * frame.frame.cols);
+      // --- Run Object Detection ---
+      std::vector<ObjDetectObservation> raw_observations;
+      std::vector<cv::Rect> detected_boxes;  // To store the boxes
+      m_ObjectDetector->detect(frame, raw_observations, detected_boxes);
 
-        if (motion_percent > MOTION_THRESHOLD) {
-          // Motion detected, so we must run the full detection
-          run_detection = true;
-          frames_to_skip = 0; // Reset counter
-        } else {
-          // No significant motion, safe to skip
-          frames_to_skip--;
+      // --- Draw annotations and stream ONLY if in setup mode ---
+      if (m_config_interface->isSetupMode() && m_annotated_cv_source) {
+        // Use a copy to avoid drawing on the frame needed for other processing
+        cv::UMat annotated_frame = frame.frame.getUMat(cv::ACCESS_READ).clone();
+        const auto& class_names = m_ObjectDetector->getClassNames();
+
+        for (size_t i = 0; i < raw_observations.size(); ++i) {
+          const auto& obs = raw_observations[i];
+          const auto& box = detected_boxes[i];
+
+          // Draw the rectangle
+          cv::rectangle(annotated_frame, box, cv::Scalar(0, 255, 0), 2);
+
+          // Create the label text
+          std::string label = class_names[obs.obj_class] + ": " +
+                              cv::format("%.2f", obs.confidence);
+
+          int baseLine;
+          cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX,
+                                               0.5, 1, &baseLine);
+          int top = std::max(box.y, labelSize.height);
+
+          // Draw a filled background for the label
+          cv::rectangle(annotated_frame,
+                        cv::Point(box.x, top - labelSize.height),
+                        cv::Point(box.x + labelSize.width, top + baseLine),
+                        cv::Scalar(0, 0, 0), cv::FILLED);
+          // Draw the label text
+          cv::putText(annotated_frame, label, cv::Point(box.x, top),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
+                      1);
         }
-      } else {
-        // This is a frame we must process
-        run_detection = true;
-        frames_to_skip = FRAME_SKIP_FACTOR; // Reset skip counter for the next cycle
+
+        cv::Mat annotated_frame_mat;
+        annotated_frame.copyTo(annotated_frame_mat);
+
+        m_annotated_cv_source->PutFrame(annotated_frame_mat);
       }
 
-      // Store the current frame for the next comparison
-      prev_gray_frame = gray_frame;
+      if (!raw_observations.empty() && m_intrinsics_loaded) {
+        ObjectDetectResult object_result;
+        object_result.timestamp = frame.timestamp;
+        object_result.camera_role = frame.cameraRole;
+        object_result.fps = smoothed_fps;
 
-      // --- Full Object Detection (only runs if triggered by motion) ---
-      if (run_detection) {
-        // --- Calculate FPS for this thread ---
-        auto current_time = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsed_seconds = current_time - last_time;
-        last_time = current_time;
-        const double instant_fps = 1.0 / elapsed_seconds.count();
-        smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
-
-        // --- Run Object Detection ---
-        std::vector<ObjDetectObservation> raw_observations;
-        std::vector<cv::Rect> detected_boxes;  // To store the boxes
-        m_ObjectDetector->detect(frame, raw_observations, detected_boxes);
-
-        // --- Draw annotations and stream ONLY if in setup mode ---
-        if (m_config_interface->isSetupMode() && m_annotated_cv_source) {
-          // Use a copy to avoid drawing on the frame needed for other processing
-          cv::UMat annotated_frame = frame.frame.getUMat(cv::ACCESS_READ).clone();
-          const auto& class_names = m_ObjectDetector->getClassNames();
-
-          for (size_t i = 0; i < raw_observations.size(); ++i) {
-            const auto& obs = raw_observations[i];
-            const auto& box = detected_boxes[i];
-
-            // Draw the rectangle
-            cv::rectangle(annotated_frame, box, cv::Scalar(0, 255, 0), 2);
-
-            // Create the label text
-            std::string label = class_names[obs.obj_class] + ": " +
-                                cv::format("%.2f", obs.confidence);
-
-            int baseLine;
-            cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX,
-                                                 0.5, 1, &baseLine);
-            int top = std::max(box.y, labelSize.height);
-
-            // Draw a filled background for the label
-            cv::rectangle(annotated_frame,
-                          cv::Point(box.x, top - labelSize.height),
-                          cv::Point(box.x + labelSize.width, top + baseLine),
-                          cv::Scalar(0, 0, 0), cv::FILLED);
-            // Draw the label text
-            cv::putText(annotated_frame, label, cv::Point(box.x, top),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255),
-                        1);
-          }
-
-          cv::Mat annotated_frame_mat;
-          annotated_frame.copyTo(annotated_frame_mat);
-
-          m_annotated_cv_source->PutFrame(annotated_frame_mat);
+        for (auto& obs : raw_observations) {
+          ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
+          object_result.observations.push_back(obs);
         }
-
-        if (!raw_observations.empty() && m_intrinsics_loaded) {
-          ObjectDetectResult object_result;
-          object_result.timestamp = frame.timestamp;
-          object_result.camera_role = frame.cameraRole;
-          object_result.fps = smoothed_fps;
-
-          for (auto& obs : raw_observations) {
-            ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
-            object_result.observations.push_back(obs);
-          }
-          m_object_detections.push(object_result);
-        }
+        m_object_detections.push(object_result);
       }
     }
   }

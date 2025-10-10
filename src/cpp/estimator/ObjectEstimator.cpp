@@ -60,6 +60,7 @@ std::vector<GamePieceData> ObjectEstimator::find_matching_rows( //TODO: Fix late
     int start_tol, int max_tol, int step) {
             return {};
 }
+
 void ObjectEstimator::calculate(ObjDetectObservation& observation,
                                 const cv::Mat& cameraMatrix,
                                 const cv::Mat& distCoeffs) {
