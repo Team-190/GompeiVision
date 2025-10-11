@@ -56,10 +56,13 @@ class ObjectDetector {
   ov::Core m_core;
   ov::CompiledModel m_compiled_model;
   ov::InferRequest infer_request;
+  auto input_port; 
+  const ov::Shape input_shape;
 #else
   cv::dnn::Net m_net;
 #endif
-  std::vector<std::string> m_class_names;
+      std::vector<std::string>
+          m_class_names;
 
   // MODEL PARAMETERS
   const float m_input_width = 640;

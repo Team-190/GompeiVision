@@ -22,41 +22,45 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
   // --- Load ONNX Neural Network Model ---
 #if USE_OPENVINO
-    // --- Use OpenVINO Runtime on x86 ---
-    logInfo("Using OpenVINO runtime.");
-    try {
-      // Load the model from the .onnx file
-      m_core = ov::Core();
-      auto model = m_core.read_model(model_path);
+  // --- Use OpenVINO Runtime on x86 ---
+  logInfo("Using OpenVINO runtime.");
+  try {
+    // Load the model from the .onnx file
+    m_core = ov::Core();
+    auto model = m_core.read_model(model_path);
 
-      // --- Preprocessing (move here later) ---
-      // Can build preprocessing steps into the model here
-      // For now, handle resizing in the detect loop.
+    // --- Preprocessing (move here later) ---
+    // Can build preprocessing steps into the model here
+    // For now, handle resizing in the detect loop.
 
-      // Compile the model for the optimal device (e.g., CPU, GPU)
-      // 'AUTO' lets OpenVINO choose the best available device.
-      m_compiled_model = m_core.compile_model(model, "AUTO");
-      logInfo("OpenVINO model compiled successfully for AUTO device.");
+    // Compile the model for the optimal device (e.g., CPU, GPU)
+    // 'AUTO' lets OpenVINO choose the best available device.
+    m_compiled_model = m_core.compile_model(model, "AUTO");
 
-      // Get input shape information
-      ov::InferRequest infer_request = m_compiled_model.create_infer_request();
-    } catch (const ov::Exception& e) {
-      logError("OpenVINO exception: " + std::string(e.what()));
-    } catch (const std::exception& e) {
-      logError("Standard exception: " + std::string(e.what()));
-    }
+    input_port = m_compiled_model.input();
+    input_shape = input_port.get_shape();
+
+    logInfo("OpenVINO model compiled successfully for AUTO device.");
+
+    // Get input shape information
+    ov::InferRequest infer_request = m_compiled_model.create_infer_request();
+  } catch (const ov::Exception& e) {
+    logError("OpenVINO exception: " + std::string(e.what()));
+  } catch (const std::exception& e) {
+    logError("Standard exception: " + std::string(e.what()));
+  }
 
 #else
-    // --- Use OpenCV DNN on ARM ---
-    m_net = cv::dnn::readNet(model_path);
-    if (m_net.empty()) {
-      logError("Failed to load object detection model from: " + model_path);
-    } else {
-      logInfo("ONNX model loaded successfully with OpenCV DNN.");
-      // Set backend for ARM
-      m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
-      m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
-    }
+  // --- Use OpenCV DNN on ARM ---
+  m_net = cv::dnn::readNet(model_path);
+  if (m_net.empty()) {
+    logError("Failed to load object detection model from: " + model_path);
+  } else {
+    logInfo("ONNX model loaded successfully with OpenCV DNN.");
+    // Set backend for ARM
+    m_net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+    m_net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+  }
 #endif
 }
 
@@ -76,9 +80,6 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
     return;
   }
   // --- 2. Preprocess and Set Input Tensor ---
-  // Get the model's input port and shape
-  auto input_port = m_compiled_model.input();
-  const ov::Shape input_shape = input_port.get_shape();
 
   // Resize the frame to match the model's input size
   cv::Mat blob;
