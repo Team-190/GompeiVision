@@ -131,6 +131,7 @@ void Pipeline::start() {
   m_apriltag_thread = std::thread(&Pipeline::apriltag_detection_loop, this);
   m_object_detection_thread =
       std::thread(&Pipeline::object_detection_loop, this);
+  m_annotation_thread = std::thread(&Pipeline::annotation_loop, this);
 }
 
 void Pipeline::during() {
@@ -194,9 +195,6 @@ void Pipeline::during() {
 
   if (m_config_interface->isSetupMode()) {
     // --- We are in Setup Mode ---
-    if (!m_annotation_thread.joinable()) {
-      m_annotation_thread = std::thread(&Pipeline::annotation_loop, this);
-    }
 
     const int new_width = m_config_interface->getWidth();
     const int new_height = m_config_interface->getHeight();
@@ -285,11 +283,6 @@ void Pipeline::during() {
   } else {
     // --- We are NOT in Setup Mode ---
 
-    if (m_annotation_thread.joinable()) {
-      m_frames_for_annotation.shutdown(); 
-      m_annotation_thread.join();          
-    }
-
     if (!m_config_interface->isSetupMode() && m_mjpeg_server)
       std::cout << "[" << m_role << "] Setup mode disabled. Stopping servers."
                 << std::endl;
@@ -309,13 +302,13 @@ void Pipeline::stop() {
   m_frames_for_apriltag_detection.shutdown();
   m_frames_for_object_detection.shutdown();
   m_frames_for_annotation.shutdown();
+  m_frames_for_annotation.shutdown();
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
   if (m_apriltag_thread.joinable()) m_apriltag_thread.join();
   if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
   if (m_annotation_thread.joinable()) m_annotation_thread.join();
-
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
@@ -476,6 +469,10 @@ void Pipeline::object_detection_loop() {
 void Pipeline::annotation_loop() {
   AnnotationData data;
   while (m_is_running) {
+    if (!m_config_interface->isSetupMode()) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      continue;
+    }
     if (m_frames_for_annotation.waitAndPop(data)) {
       cv::UMat annotated_frame =
           data.q_frame.frame.getUMat(cv::ACCESS_READ).clone();
