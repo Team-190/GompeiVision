@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#ifdef USE_OPENVINO
+#if USE_OPENVINO
 #include <openvino/openvino.hpp>
 #endif
 
@@ -52,7 +52,7 @@ class ObjectDetector {
   void logInfo(const std::string& message) const;
   void logError(const std::string& message) const;
 
-#ifdef USE_OPENVINO
+#if USE_OPENVINO
   ov::Core m_core;
   ov::CompiledModel m_compiled_model;
 #else

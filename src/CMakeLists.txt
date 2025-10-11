@@ -66,6 +66,7 @@ target_link_libraries(GompeiVision PRIVATE
 target_link_libraries(GompeiVisionProcess PRIVATE
         third_party_libs
 )
+message(STATUS "DEBUG: The value of USE_OPENVINO is [${USE_OPENVINO}]")
 
 if(USE_OPENVINO)
     find_package(OpenVINO REQUIRED)

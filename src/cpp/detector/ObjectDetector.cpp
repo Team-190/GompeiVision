@@ -21,7 +21,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
   }
 
   // --- Load ONNX Neural Network Model ---
-#ifdef USE_OPENVINO
+#if USE_OPENVINO
     // --- Use OpenVINO Runtime on x86 ---
     logInfo("Using OpenVINO runtime.");
     try {
@@ -68,7 +68,7 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   std::vector<float> confidences;
   std::vector<cv::Rect> boxes;
 
-#ifdef USE_OPENVINO
+#if USE_OPENVINO
   if (q_frame.frame.empty() || !m_compiled_model) {
     return;
   }
