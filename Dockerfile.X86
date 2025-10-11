@@ -66,8 +66,7 @@ RUN apt-cache search openvino
 RUN apt install -y openvino intel-opencl-icd
 
 # Set up OpenVINO environment (optional for runtime path)
-ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
-RUN echo "source /opt/intel/openvino/setupvars.sh" >> /etc/bash.bashrc
+ENV OpenVINO_DIR=/usr/lib/cmake/openvino2025.3.0
 
 
 # Install any pip packages needed
@@ -88,7 +87,6 @@ WORKDIR /opt/opencv/build
 RUN cmake -D CMAKE_BUILD_TYPE=RELEASE \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-          -D WITH_OPENVINO=ON \
           -D BUILD_OPENCV_FEATURES2d=ON \
           -D BUILD_OPENCV_FLANN=ON \
           -D BUILD_EXAMPLES=OFF \
