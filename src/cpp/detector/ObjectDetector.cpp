@@ -26,6 +26,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     logInfo("Using OpenVINO runtime.");
     try {
       // Load the model from the .onnx file
+      m_core = ov::Core();
       auto model = m_core.read_model(model_path);
 
       // --- Preprocessing (move here later) ---
@@ -37,6 +38,8 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
       m_compiled_model = m_core.compile_model(model, "AUTO");
       logInfo("OpenVINO model compiled successfully for AUTO device.");
 
+      // Get input shape information
+      ov::InferRequest infer_request = m_compiled_model.create_infer_request();
     } catch (const ov::Exception& e) {
       logError("OpenVINO exception: " + std::string(e.what()));
     } catch (const std::exception& e) {
@@ -72,28 +75,21 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   if (q_frame.frame.empty() || !m_compiled_model) {
     return;
   }
-  // --- 1. Create Inference Request ---
-  ov::InferRequest infer_request = m_compiled_model.create_infer_request();
-
   // --- 2. Preprocess and Set Input Tensor ---
   // Get the model's input port and shape
   auto input_port = m_compiled_model.input();
   const ov::Shape input_shape = input_port.get_shape();
-  const size_t input_height = input_shape[2];
-  const size_t input_width = input_shape[3];
 
   // Resize the frame to match the model's input size
-  cv::Mat resized_frame;
-  cv::resize(q_frame.frame, resized_frame, cv::Size(input_width, input_height));
-
-  // Convert to float and normalize
-  cv::Mat float_frame;
-  resized_frame.convertTo(float_frame, CV_32F, 1.0 / 255.0);
+  cv::Mat blob;
+  cv::dnn::blobFromImage(q_frame.frame, blob, 1. / 255.,
+                         cv::Size(m_input_width, m_input_height), cv::Scalar(),
+                         true, false);
 
   // Create an OpenVINO tensor from the preprocessed cv::Mat data
   // This tensor will share data with the cv::Mat, avoiding a copy
   ov::Tensor input_tensor(input_port.get_element_type(), input_shape,
-                          float_frame.data);
+                          blob.ptr<float>());
 
   infer_request.set_input_tensor(input_tensor);
 

@@ -55,6 +55,7 @@ class ObjectDetector {
 #if USE_OPENVINO
   ov::Core m_core;
   ov::CompiledModel m_compiled_model;
+  ov::InferRequest infer_request;
 #else
   cv::dnn::Net m_net;
 #endif
