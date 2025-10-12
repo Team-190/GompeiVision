@@ -96,23 +96,29 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
     return;
   }
   // ---1. Preprocess ---
+  auto t0 = std::chrono::high_resolution_clock::now();
   cv::Mat blob;
   cv::dnn::blobFromImage(q_frame.frame, blob, 1. / 255.,
                          cv::Size(m_input_width, m_input_height), cv::Scalar(),
                          true, false);
+  auto t1 = std::chrono::high_resolution_clock::now();
 
   // Create an OpenVINO tensor from the preprocessed cv::Mat data
   // This tensor will share data with the cv::Mat, avoiding a copy
   ov::Tensor input_tensor(input_element_type, input_shape, blob.ptr<float>());
+  auto t2 = std::chrono::high_resolution_clock::now();
 
   infer_request.set_input_tensor(input_tensor);
+  auto t3 = std::chrono::high_resolution_clock::now();
 
   // --- 2. Perform Inference ---
   infer_request.infer();
+  auto t4 = std::chrono::high_resolution_clock::now();
 
   // --- 3. Post-process Results ---
   const ov::Tensor& output_tensor = infer_request.get_output_tensor();
   const float* detections = output_tensor.data<const float>();
+  auto t5 = std::chrono::high_resolution_clock::now();
 
   // The output shape for YOLOv8 is [1, 84, 8400]
   // where 84 = 4 (bbox) + 80 (class scores)
@@ -120,14 +126,13 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   const int num_classes = m_class_names.size();
   const int elements_per_detection = num_classes + 4;  // 4 for bbox
   const int num_detections = output_tensor.get_shape()[2];
-
   float x_factor = q_frame.frame.cols / m_input_width;
   float y_factor = q_frame.frame.rows / m_input_height;
-
   // Transpose the data from [1, 84, 8400] to [1, 8400, 84] for easier iteration
   cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F,
                         (void*)detections);
   cv::Mat detections_mat = output_matrix.t();
+  auto t6 = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < detections_mat.rows; ++i) {
     // For each detection, find the class with the highest score
@@ -154,6 +159,50 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
       boxes.emplace_back(left, top, width, height);
     }
   }
+  auto t7 = std::chrono::high_resolution_clock::now();
+
+  // std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count();
+  // Log timing info
+  logInfo(" Preprocess (blobFromImage): " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)
+                  .count()) +
+          "ns");
+  logInfo(" Create input tensor: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1)
+                  .count()) +
+          "ns");
+  logInfo(" Set input tensor: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t3 - t2)
+                  .count()) +
+          "ns");
+  logInfo(" Inference: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t4 - t3)
+                  .count()) +
+          "ns");
+  logInfo(" Get output tensor: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t5 - t4)
+                  .count()) +
+          "ns");
+  logInfo(" Transpose output: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t6 - t5)
+                  .count()) +
+          "ns");
+  logInfo(" Post-process detections: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t7 - t6)
+                  .count()) +
+          "ns");
+  logInfo(" Total: " +
+          std::to_string(
+              std::chrono::duration_cast<std::chrono::nanoseconds>(t7 - t0)
+                  .count()) +
+          "ns");
 
 #else
   // --- ARM IMPLEMENTATION (Original OpenCV DNN) ---
