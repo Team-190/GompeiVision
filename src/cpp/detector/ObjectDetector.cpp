@@ -37,10 +37,12 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     // 'AUTO' lets OpenVINO choose the best available device.
     m_compiled_model = m_core.compile_model(model, "AUTO");
 
-    input_port = m_compiled_model.input();
+    auto input_port = m_compiled_model.input();
     input_shape = input_port.get_shape();
+    input_element_type =
+        input_port.get_element_type()
 
-    logInfo("OpenVINO model compiled successfully for AUTO device.");
+            logInfo("OpenVINO model compiled successfully for AUTO device.");
 
     // Get input shape information
     ov::InferRequest infer_request = m_compiled_model.create_infer_request();
@@ -89,8 +91,8 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
 
   // Create an OpenVINO tensor from the preprocessed cv::Mat data
   // This tensor will share data with the cv::Mat, avoiding a copy
-  ov::Tensor input_tensor(input_port.get_element_type(), input_shape,
-                          blob.ptr<float>());
+  ov::Tensor input_tensor(input_element_type, input_shape, blob.ptr<float>());
+
 
   infer_request.set_input_tensor(input_tensor);
 

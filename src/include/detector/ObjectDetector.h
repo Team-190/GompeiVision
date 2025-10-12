@@ -56,8 +56,9 @@ class ObjectDetector {
   ov::Core m_core;
   ov::CompiledModel m_compiled_model;
   ov::InferRequest infer_request;
-  auto input_port; 
   const ov::Shape input_shape;
+  const ov::element::Type input_element_type;
+
 #else
   cv::dnn::Net m_net;
 #endif
