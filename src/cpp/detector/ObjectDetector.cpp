@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <openvino/runtime/properties.hpp>
 #include <vector>
 
 ObjectDetector::ObjectDetector(const std::string& model_path,
@@ -42,11 +43,20 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     input_element_type = input_port.get_element_type();
 
     logInfo("OpenVINO model compiled successfully for AUTO device.");
-
+    logInfo("Model input shape: " + std::to_string(input_shape[0]) + "x" +
+            std::to_string(input_shape[1]) + "x" +
+            std::to_string(input_shape[2]) + "x" +
+            std::to_string(input_shape[3]));
     // Get input shape information
-    ov::InferRequest infer_request = m_compiled_model.create_infer_request();
-    m_compiled_model.set_property(
-        {{ov::hint::performance_mode, ov::hint::PerformanceMode::LATENCY}});
+    infer_request = m_compiled_model.create_infer_request();
+
+    // Print info
+    auto exec_devices = m_compiled_model.get_property(ov::execution_devices);
+    std::cout << "[ObjectDetector INFO] Running on device(s): ";
+    for (const auto& d : exec_devices) {
+      std::cout << d << " ";
+    }
+    std::cout << std::endl;
   } catch (const ov::Exception& e) {
     logError("OpenVINO exception: " + std::string(e.what()));
   } catch (const std::exception& e) {
