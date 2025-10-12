@@ -46,6 +46,8 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     // Get input shape information
     ov::InferRequest infer_request = m_compiled_model.create_infer_request();
+    compiled_model.set_property(
+        {{ov::hint::performance_mode, ov::hint::PerformanceMode::LATENCY}});
   } catch (const ov::Exception& e) {
     logError("OpenVINO exception: " + std::string(e.what()));
   } catch (const std::exception& e) {
