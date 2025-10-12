@@ -39,14 +39,13 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     auto input_port = m_compiled_model.input();
     input_shape = input_port.get_shape();
-    input_element_type =
-        input_port.get_element_type()
+    input_element_type = input_port.get_element_type();
 
-            logInfo("OpenVINO model compiled successfully for AUTO device.");
+    logInfo("OpenVINO model compiled successfully for AUTO device.");
 
     // Get input shape information
     ov::InferRequest infer_request = m_compiled_model.create_infer_request();
-    compiled_model.set_property(
+    m_compiled_model.set_property(
         {{ov::hint::performance_mode, ov::hint::PerformanceMode::LATENCY}});
   } catch (const ov::Exception& e) {
     logError("OpenVINO exception: " + std::string(e.what()));
