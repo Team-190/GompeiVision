@@ -181,11 +181,11 @@ RUN git clone https://github.com/yhirose/cpp-httplib.git && \
 # Also run ldconfig to update the linker cache for the newly installed libraries
 RUN rm -rf /opt/opencv /opt/opencv_contrib /opt/apriltag /opt/allwpilib /opt/openpnp-capture /opt/Eigen
 RUN ldconfig
-RUN usermod -a -G render,video $USER
 
 # --- Create a non-root user for security ---
 # Switch to the non-root user for subsequent commands and for running the container
 RUN useradd -ms /bin/bash developer
+RUN usermod -a -G render,video developer
 USER developer
 
 # Set the final working directory for the developer user

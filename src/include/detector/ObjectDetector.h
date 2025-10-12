@@ -5,6 +5,7 @@
 
 #if USE_OPENVINO
 #include <openvino/openvino.hpp>
+#include <openvino/runtime/properties.hpp>
 #endif
 
 #include <opencv2/dnn.hpp>

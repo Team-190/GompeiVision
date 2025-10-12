@@ -2,7 +2,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <openvino/runtime/properties.hpp>
 #include <vector>
 
 ObjectDetector::ObjectDetector(const std::string& model_path,
