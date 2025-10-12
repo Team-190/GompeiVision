@@ -21,16 +21,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Check if the target architecture is x86_64
-add_compile_definitions(USE_OPENVINO)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     # Only on x86, we find OpenVINO and add a definition
     message(STATUS "x86_64 architecture detected, enabling OpenVINO.")
     find_package(OpenVINO REQUIRED)
     set(USE_OPENVINO ON)
+    add_compile_definitions(USE_OPENVINO=1)
 else()
     # On other architectures (like ARM), we do nothing
     message(STATUS "Non-x86 architecture detected, OpenVINO will be disabled.")
     set(USE_OPENVINO OFF)
+    add_compile_definitions(USE_OPENVINO=0)
 endif()
 
 # Include the dependency fetching script. This will trigger the downloads
