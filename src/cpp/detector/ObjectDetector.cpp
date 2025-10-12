@@ -28,6 +28,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
   try {
     // Load the model from the .onnx file
     m_core = ov::Core();
+
     auto model = m_core.read_model(model_path);
 
     // --- Preprocessing (move here later) ---
@@ -36,7 +37,9 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
     // 'AUTO' lets OpenVINO choose the best available device.
-    m_compiled_model = m_core.compile_model(model, "AUTO");
+    m_compiled_model = m_core.compile_model(
+        model, "HETERO:GPU,CPU", ov::enable_profiling(true),
+        ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
 
     auto input_port = m_compiled_model.input();
     input_shape = input_port.get_shape();
@@ -92,9 +95,7 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   if (q_frame.frame.empty() || !m_compiled_model) {
     return;
   }
-  // --- 2. Preprocess and Set Input Tensor ---
-
-  // Resize the frame to match the model's input size
+  // ---1. Preprocess ---
   cv::Mat blob;
   cv::dnn::blobFromImage(q_frame.frame, blob, 1. / 255.,
                          cv::Size(m_input_width, m_input_height), cv::Scalar(),
@@ -104,13 +105,12 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   // This tensor will share data with the cv::Mat, avoiding a copy
   ov::Tensor input_tensor(input_element_type, input_shape, blob.ptr<float>());
 
-
   infer_request.set_input_tensor(input_tensor);
 
-  // --- 3. Perform Inference ---
+  // --- 2. Perform Inference ---
   infer_request.infer();
 
-  // --- 4. Post-process Results ---
+  // --- 3. Post-process Results ---
   const ov::Tensor& output_tensor = infer_request.get_output_tensor();
   const float* detections = output_tensor.data<const float>();
 
