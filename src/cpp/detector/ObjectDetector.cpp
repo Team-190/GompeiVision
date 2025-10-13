@@ -126,7 +126,8 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
 
   // --- 3. Post-process Results ---
   const ov::Tensor& output_tensor = m_infer_request.get_output_tensor();
-  const float* detections = output_tensor.data<const float>();
+  const float* detections =
+      static_cast<const float*>(output_tensor.data<float>());
 
   // The output shape for YOLOv8 is [1, 84, 8400]
   // where 84 = 4 (bbox) + 80 (class scores)

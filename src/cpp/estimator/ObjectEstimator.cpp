@@ -1,71 +1,17 @@
 #include "estimator/ObjectEstimator.h"
 
 #include <cmath>
-#include <opencv2/calib3d.hpp>
-#include <vector>
 #include <fstream>
-#include <sstream>
 #include <iostream>
-#include <frc/geometry/Pose3d.h>
-#include <frc/geometry/Translation3d.h>
-#include <frc/geometry/Rotation3d.h>
-
-std::vector<GamePieceData> ObjectEstimator::m_game_piece_data;
-bool ObjectEstimator::m_data_loaded = false;
-
-void ObjectEstimator::loadData(const std::string& path) {
-    if (m_data_loaded) {
-        return;
-    }
-
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        std::cerr << "Could not open game piece data file: " << path << std::endl;
-        return;
-    }
-
-    m_game_piece_data.clear();
-    std::string line;
-    // Skip header
-    std::getline(file, line);
-
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string cell;
-        GamePieceData data;
-
-        std::getline(ss, cell, ',');
-        data.class_id = std::stoi(cell); // Load class_id
-        std::getline(ss, cell, ',');
-        data.center_x = std::stod(cell);
-        std::getline(ss, cell, ',');
-        data.center_y = std::stod(cell);
-        std::getline(ss, cell, ',');
-        data.width = std::stod(cell);
-        std::getline(ss, cell, ',');
-        data.height = std::stod(cell);
-        std::getline(ss, cell, ',');
-        data.x_position = std::stod(cell);
-        std::getline(ss, cell, ',');
-        data.y_position = std::stod(cell);
-
-        m_game_piece_data.push_back(data);
-    }
-    m_data_loaded = true;
-    std::cout << "Loaded " << m_game_piece_data.size() << " rows of game piece data." << std::endl;
-}
-
-std::vector<GamePieceData> ObjectEstimator::find_matching_rows( //TODO: Fix later
-    const ObjDetectObservation& observation, int& used_tolerance,
-    int start_tol, int max_tol, int step) {
-            return {};
-}
+#include <opencv2/calib3d.hpp>
+#include <sstream>
+#include <vector>
 
 void ObjectEstimator::calculate(ObjDetectObservation& observation,
                                 const cv::Mat& cameraMatrix,
                                 const cv::Mat& distCoeffs) {
   if (observation.corner_pixels.size() != 8) {
-    return; // Must be a 4-corner bounding box
+    return;  // Must be a 4-corner bounding box
   }
 
   // 1. Get raw corner pixels for this object
@@ -75,7 +21,7 @@ void ObjectEstimator::calculate(ObjDetectObservation& observation,
     image_points.emplace_back(observation.corner_pixels[j],
                               observation.corner_pixels[j + 1]);
   }
-  
+
   // 2. Undistort corner points for accurate angle calculation
   std::vector<cv::Point2f> undistorted_points;
   cv::undistortPoints(image_points, undistorted_points, cameraMatrix,
@@ -93,36 +39,90 @@ void ObjectEstimator::calculate(ObjDetectObservation& observation,
 
     cv::Mat vec = invCameraMatrix * p;
 
-    observation.corner_angles.push_back(std::atan(vec.at<double>(0, 0))); // Angle X
-    observation.corner_angles.push_back(std::atan(vec.at<double>(1, 0))); // Angle Y
+    observation.corner_angles.push_back(
+        std::atan(vec.at<double>(0, 0)));  // Angle X
+    observation.corner_angles.push_back(
+        std::atan(vec.at<double>(1, 0)));  // Angle Y
   }
 
-
-  // Estimate distance and pose (this part is now class-aware)
-  if (m_data_loaded) {
-    int used_tolerance = 0;
-    std::vector<GamePieceData> matching_rows = find_matching_rows(observation, used_tolerance);
-
-    if (!matching_rows.empty()) {
-        double avg_x = 0;
-        double avg_y = 0;
-        for (const auto& row : matching_rows) {
-            avg_x += row.x_position;
-            avg_y += row.y_position;
-        }
-        avg_x /= matching_rows.size();
-        avg_y /= matching_rows.size();
-
-        observation.pose = frc::Pose3d(
-            units::meter_t{avg_x},
-            units::meter_t{avg_y},
-            0_m,
-            frc::Rotation3d()
-        );
-        observation.distance = std::sqrt(avg_x * avg_x + avg_y * avg_y);
-
-    } else {
-        observation.distance = 0;
-    }
+  // 4. Look up the 3D model points for the detected object's class ID
+  if (object_models.find(observation.obj_class) == object_models.end()) {
+    return;  // No 3D model available for this object, can't calculate pose
   }
+  const std::vector<cv::Point3f>& model_points_3d =
+      object_models.at(observation.obj_class);
+
+  // 5. Ensure we have a matching number of 2D and 3D points (at least 4)
+  if (model_points_3d.size() != image_points.size() ||
+      model_points_3d.size() < 4) {
+    std::cerr << "ERROR: Mismatch between 3D model points and 2D image points "
+                 "for class "
+              << observation.obj_class << std::endl;
+    return;
+  }
+
+  // 6. Use solvePnP to find the object's rotation and translation
+  // We use the original 'image_points' as solvePnP takes distCoeffs directly.
+  cv::Mat rvec, tvec;
+  bool success = cv::solvePnP(model_points_3d, image_points, cameraMatrix,
+                              distCoeffs, rvec, tvec);
+
+  if (!success) {
+    return;  // Pose estimation failed
+  }
+
+  // Convert rotation vector to rotation matrix
+  cv::Matx33d rotation_matrix;
+  cv::Rodrigues(rvec, rotation_matrix);
+
+  // Convert rotation matrix to quaternion
+  // Using the algorithm from
+  // https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/
+  double trace =
+      rotation_matrix(0, 0) + rotation_matrix(1, 1) + rotation_matrix(2, 2);
+  double qw, qx, qy, qz;
+
+  if (trace > 0) {
+    double s = 0.5 / std::sqrt(trace + 1.0);
+    qw = 0.25 / s;
+    qx = (rotation_matrix(2, 1) - rotation_matrix(1, 2)) * s;
+    qy = (rotation_matrix(0, 2) - rotation_matrix(2, 0)) * s;
+    qz = (rotation_matrix(1, 0) - rotation_matrix(0, 1)) * s;
+  } else if (rotation_matrix(0, 0) > rotation_matrix(1, 1) &&
+             rotation_matrix(0, 0) > rotation_matrix(2, 2)) {
+    double s = 2.0 * std::sqrt(1.0 + rotation_matrix(0, 0) -
+                               rotation_matrix(1, 1) - rotation_matrix(2, 2));
+    qw = (rotation_matrix(2, 1) - rotation_matrix(1, 2)) / s;
+    qx = 0.25 * s;
+    qy = (rotation_matrix(0, 1) + rotation_matrix(1, 0)) / s;
+    qz = (rotation_matrix(0, 2) + rotation_matrix(2, 0)) / s;
+  } else if (rotation_matrix(1, 1) > rotation_matrix(2, 2)) {
+    double s = 2.0 * std::sqrt(1.0 + rotation_matrix(1, 1) -
+                               rotation_matrix(0, 0) - rotation_matrix(2, 2));
+    qw = (rotation_matrix(0, 2) - rotation_matrix(2, 0)) / s;
+    qx = (rotation_matrix(0, 1) + rotation_matrix(1, 0)) / s;
+    qy = 0.25 * s;
+    qz = (rotation_matrix(1, 2) + rotation_matrix(2, 1)) / s;
+  } else {
+    double s = 2.0 * std::sqrt(1.0 + rotation_matrix(2, 2) -
+                               rotation_matrix(0, 0) - rotation_matrix(1, 1));
+    qw = (rotation_matrix(1, 0) - rotation_matrix(0, 1)) / s;
+    qx = (rotation_matrix(0, 2) + rotation_matrix(2, 0)) / s;
+    qy = (rotation_matrix(1, 2) + rotation_matrix(2, 1)) / s;
+    qz = 0.25 * s;
+  }
+
+  // Create Rotation3d from quaternion (w, x, y, z)
+  frc::Rotation3d frc_rotation(frc::Quaternion(qw, qx, qy, qz));
+
+  // Apply the coordinate system change from OpenCV to FRC
+  frc::Translation3d frc_translation(
+      units::meter_t{tvec.at<double>(2)},   // FRC X is OpenCV Z
+      units::meter_t{-tvec.at<double>(0)},  // FRC Y is OpenCV -X
+      units::meter_t{-tvec.at<double>(1)}   // FRC Z is OpenCV -Y
+  );
+
+  // 8. Store the final pose and distance in the observation struct
+  observation.pose = frc::Pose3d(frc_translation, frc_rotation);
+  observation.distance = frc_translation.Norm().value();
 }

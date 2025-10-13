@@ -59,8 +59,6 @@ Pipeline::Pipeline(const std::string& device_path,
 
     m_ObjectDetector = std::make_unique<ObjectDetector>(
         selected_model.modelPath, selected_model.namesPath);
-    ObjectEstimator::loadData(
-        "/usr/local/share/GompeiVision/reefscape_pose_estimation.csv");
     m_active_model_index = initial_model_index;  // Set the active index
   } else {
     std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("

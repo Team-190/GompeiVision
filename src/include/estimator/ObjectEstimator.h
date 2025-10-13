@@ -1,20 +1,15 @@
 #pragma once
 
+#include <frc/geometry/Pose3d.h>
+#include <frc/geometry/Rotation3d.h>
+#include <frc/geometry/Translation3d.h>
+#include <frc/geometry/Quaternion.h>
+
+#include <map>
 #include <opencv2/core/mat.hpp>
 #include <vector>
-#include <frc/geometry/Pose3d.h>
 
 #include "util/QueuedObjectData.h"
-
-struct GamePieceData {
-    int class_id; 
-    double center_x;
-    double center_y;
-    double width;
-    double height;
-    double x_position;
-    double y_position;
-};
 
 /**
  * @class ObjectEstimator
@@ -40,19 +35,32 @@ class ObjectEstimator {
    * @param distCoeffs The camera's distortion coefficients.
    */
   static void calculate(ObjDetectObservation& observation,
-                        const cv::Mat& cameraMatrix,
-                        const cv::Mat& distCoeffs);
-
-  static void loadData(const std::string& path);
+                        const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs);
 
  private:
-
-    static std::vector<GamePieceData> m_game_piece_data;
-    static bool m_data_loaded;
-
-    static std::vector<GamePieceData> find_matching_rows(const ObjDetectObservation& observation,
-                                                       int& used_tolerance,
-                                                       int start_tol = 25,
-                                                       int max_tol = 40,
-                                                       int step = 2);
+  // Predefined 3D models for known object classes (in meters)
+  inline static const std::map<int, std::vector<cv::Point3f>> object_models = {
+      {0,  // Algae (Box based on 0.406400 sphere diameter)
+       {
+           cv::Point3f(-0.2032f, 0.2032f,
+                       0.0f),  // Top-left (X: -0.2032, Y: 0.2032)
+           cv::Point3f(0.2032f, 0.2032f,
+                       0.0f),  // Top-right (X: 0.2032, Y: 0.2032)
+           cv::Point3f(0.2032f, -0.2032f,
+                       0.0f),  // Bottom-right (X: 0.2032, Y: -0.2032)
+           cv::Point3f(-0.2032f, -0.2032f,
+                       0.0f)  // Bottom-left (X: -0.2032, Y: -0.2032)
+       }},
+      {1,  // Coral (Width: 0.301625, Height: 0.114300)
+       {
+           cv::Point3f(-0.1508125f, 0.05715f,
+                       0.0f),  // Top-left (X: -0.1508125, Y: 0.05715)
+           cv::Point3f(0.1508125f, 0.05715f,
+                       0.0f),  // Top-right (X: 0.1508125, Y: 0.05715)
+           cv::Point3f(0.1508125f, -0.05715f,
+                       0.0f),  // Bottom-right (X: 0.1508125, Y: -0.05715)
+           cv::Point3f(-0.1508125f, -0.05715f,
+                       0.0f)  // Bottom-left (X: -0.1508125, Y: -0.05715)
+       }},
+  };
 };
