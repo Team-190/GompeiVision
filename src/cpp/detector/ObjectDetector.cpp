@@ -31,19 +31,29 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     auto model = m_core.read_model(model_path);
 
     ov::preprocess::PrePostProcessor ppp(model);
+
+    // 1. Declare the expected input tensor properties
     ppp.input()
         .tensor()
-        .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
-        .set_layout("NHWC")  // OpenCV format: batch, height, width, channels
-        .set_color_format(ov::preprocess::ColorFormat::BGR);
+        .set_element_type(ov::element::u8)  // Original image data type: uint8
+        .set_layout("NHWC")                 // OpenCV format
+        .set_color_format(
+            ov::preprocess::ColorFormat::BGR);  // Original image is in BGR
 
+    // 2. Describe the model's expected input layout
     ppp.input().model().set_layout("NCHW");
+
+    // 3. Define preprocessing steps
     ppp.input()
         .preprocess()
-        .convert_element_type(ov::element::f32)  // Convert to float32
-        .convert_color(ov::preprocess::ColorFormat::RGB)
-        .scale(255.0f)
-        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, 640, 640);
+        .convert_color(
+            ov::preprocess::ColorFormat::RGB)  // BGR to RGB (like swapRB=true)
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, m_input_width,
+                m_input_height)
+        .convert_element_type(ov::element::f32)  // Convert to float
+        .scale(1.0f / 255.0f);                   // Scale like blobFromImage
+
+    // 4. Apply preprocessing to the model
     model = ppp.build();
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
