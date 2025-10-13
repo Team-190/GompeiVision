@@ -43,7 +43,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
         .convert_element_type(ov::element::f32)  // Convert to float32
         .convert_color(ov::preprocess::ColorFormat::RGB)
         .scale(255.0f)
-        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR);
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, 640, 640);
     model = ppp.build();
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
