@@ -28,48 +28,24 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     // Load the model from the .onnx file
     m_core = ov::Core();
 
-    // Load the model as before
     auto model = m_core.read_model(model_path);
 
-    // --- START: ADD THIS CODE ---
-    // Make the model's input dimensions dynamic to accept various image sizes.
-    // This allows the PPP to handle the resizing.
-    ov::PartialShape shape = model->input().get_partial_shape();
-
-    // The log shows an NHWC layout: [1,640,640,3]
-    // N is index 0, H is 1, W is 2, C is 3. We make H and W dynamic.
-    shape[1] = -1;  // or ov::Dimension::dynamic()
-    shape[2] = -1;  // or ov::Dimension::dynamic()
-
-    // Apply the new dynamic shape to the model
-    model->reshape({shape});
-    // --- END: ADD THIS CODE ---
-
-    // Now, your existing PPP setup will work correctly
     ov::preprocess::PrePostProcessor ppp(model);
-
-    // 1. Declare the expected input tensor properties
     ppp.input()
         .tensor()
-        .set_element_type(ov::element::u8)
-        .set_layout("NHWC")
-        .set_color_format(ov::preprocess::ColorFormat::BGR);
+        .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
+        .set_shape([1, 640, 640, 3])
+        .set_layout("NHWC")  // OpenCV format: batch, height, width, channels
 
-    // 2. Describe the model's expected input layout
     ppp.input().model().set_layout("NCHW");
-
-    // 3. Define preprocessing steps
     ppp.input()
         .preprocess()
+        .convert_element_type(ov::element::f32)  // Convert to float32
         .convert_color(ov::preprocess::ColorFormat::RGB)
-        // This resize step now works because the model accepts a dynamic input
-        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, m_input_width,
-                m_input_height)
-        .convert_element_type(ov::element::f32)
-        .scale(1.0f / 255.0f);
-
-    // 4. Apply preprocessing to the model
+        .scale(255.0f)
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR);
     model = ppp.build();
+
     // Compile the model for the optimal device (e.g., CPU, GPU)
     // 'AUTO' lets OpenVINO choose the best available device.
     m_core.set_property(
