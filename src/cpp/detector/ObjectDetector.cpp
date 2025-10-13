@@ -36,9 +36,16 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
     // 'AUTO' lets OpenVINO choose the best available device.
-    m_compiled_model = m_core.compile_model(
-        model, "HETERO:GPU,CPU", ov::enable_profiling(true),
-        ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+    m_core.set_property(
+        "GPU", ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY));
+
+    m_core.set_property("GPU",
+                        ov::hint::model_priority(ov::hint::Priority::HIGH));
+
+    m_core.set_property("GPU", ov::hint::inference_precision(ov::element::f16));
+
+    m_compiled_model = m_core.compile_model(model, "HETERO:GPU,CPU",
+                                            ov::enable_profiling(false));
 
     auto input_port = m_compiled_model.input();
     input_shape = input_port.get_shape();

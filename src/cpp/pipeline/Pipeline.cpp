@@ -87,11 +87,9 @@ Pipeline::Pipeline(const std::string& device_path,
 
   while (!FieldInterface::update());
 
-  m_frames_for_apriltag_detection.setMaxQueue(6);
   m_frames_for_object_detection.setMaxQueue(1);
   m_frames_for_annotation.setMaxQueue(1);
 
-  m_estimated_poses.setMaxQueue(3);
   m_object_detections.setMaxQueue(1);
 
   m_output_publisher =
