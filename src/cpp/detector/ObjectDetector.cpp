@@ -35,7 +35,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
         .tensor()
         .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
         .set_shape({1, 640, 640, 3})
-        .set_layout("NHWC")  // OpenCV format: batch, height, width, channels
+        .set_layout("NHWC");  // OpenCV format: batch, height, width, channels
 
     ppp.input().model().set_layout("NCHW");
     ppp.input()
