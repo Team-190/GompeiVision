@@ -30,9 +30,21 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
     auto model = m_core.read_model(model_path);
 
-    // --- Preprocessing (move here later) ---
-    // Can build preprocessing steps into the model here
-    // For now, handle resizing in the detect loop.
+    ov::preprocess::PrePostProcessor ppp(model);
+    ppp.input()
+        .tensor()
+        .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
+        .set_layout("NHWC")  // OpenCV format: batch, height, width, channels
+        .set_color_format(ov::preprocess::ColorFormat::BGR);
+
+    ppp.input().model().set_layout("NCHW");
+    ppp.input()
+        .preprocess()
+        .convert_element_type(ov::element::f32)  // Convert to float32
+        .convert_color(ov::preprocess::ColorFormat::RGB)
+        .scale(255.0f)
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR);
+    model = ppp.build();
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
     // 'AUTO' lets OpenVINO choose the best available device.
@@ -48,16 +60,16 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
                                             ov::enable_profiling(false));
 
     auto input_port = m_compiled_model.input();
-    input_shape = input_port.get_shape();
-    input_element_type = input_port.get_element_type();
+    m_input_shape = input_port.get_shape();
+    m_input_element_type = input_port.get_element_type();
 
     logInfo("OpenVINO model compiled successfully for AUTO device.");
-    logInfo("Model input shape: " + std::to_string(input_shape[0]) + "x" +
-            std::to_string(input_shape[1]) + "x" +
-            std::to_string(input_shape[2]) + "x" +
-            std::to_string(input_shape[3]));
+    logInfo("Model input shape: " + std::to_string(m_input_shape[0]) + "x" +
+            std::to_string(m_input_shape[1]) + "x" +
+            std::to_string(m_input_shape[2]) + "x" +
+            std::to_string(m_input_shape[3]));
     // Get input shape information
-    infer_request = m_compiled_model.create_infer_request();
+    m_infer_request = m_compiled_model.create_infer_request();
 
     // Print info
     auto exec_devices = m_compiled_model.get_property(ov::execution_devices);
@@ -102,29 +114,19 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
     return;
   }
   // ---1. Preprocess ---
-  auto t0 = std::chrono::high_resolution_clock::now();
-  cv::Mat blob;
-  cv::dnn::blobFromImage(q_frame.frame, blob, 1. / 255.,
-                         cv::Size(m_input_width, m_input_height), cv::Scalar(),
-                         true, false);
-  auto t1 = std::chrono::high_resolution_clock::now();
+  ov::Tensor input_tensor(ov::element::u8,
+                          {1, static_cast<size_t>(q_frame.frame.rows),
+                           static_cast<size_t>(q_frame.frame.cols), 3},
+                          q_frame.frame.data);
 
-  // Create an OpenVINO tensor from the preprocessed cv::Mat data
-  // This tensor will share data with the cv::Mat, avoiding a copy
-  ov::Tensor input_tensor(input_element_type, input_shape, blob.ptr<float>());
-  auto t2 = std::chrono::high_resolution_clock::now();
-
-  infer_request.set_input_tensor(input_tensor);
-  auto t3 = std::chrono::high_resolution_clock::now();
+  m_infer_request.set_input_tensor(input_tensor);
 
   // --- 2. Perform Inference ---
-  infer_request.infer();
-  auto t4 = std::chrono::high_resolution_clock::now();
+  m_infer_request.infer();
 
   // --- 3. Post-process Results ---
-  const ov::Tensor& output_tensor = infer_request.get_output_tensor();
+  const ov::Tensor& output_tensor = m_infer_request.get_output_tensor();
   const float* detections = output_tensor.data<const float>();
-  auto t5 = std::chrono::high_resolution_clock::now();
 
   // The output shape for YOLOv8 is [1, 84, 8400]
   // where 84 = 4 (bbox) + 80 (class scores)
@@ -138,7 +140,6 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F,
                         (void*)detections);
   cv::Mat detections_mat = output_matrix.t();
-  auto t6 = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < detections_mat.rows; ++i) {
     // For each detection, find the class with the highest score
@@ -165,51 +166,6 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
       boxes.emplace_back(left, top, width, height);
     }
   }
-  auto t7 = std::chrono::high_resolution_clock::now();
-
-  // std::chrono::duration_cast<std::chrono::nanoseconds>(finish-start).count();
-  // Log timing info
-  logInfo(" Preprocess (blobFromImage): " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)
-                  .count()) +
-          "ns");
-  logInfo(" Create input tensor: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1)
-                  .count()) +
-          "ns");
-  logInfo(" Set input tensor: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t3 - t2)
-                  .count()) +
-          "ns");
-  logInfo(" Inference: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t4 - t3)
-                  .count()) +
-          "ns");
-  logInfo(" Get output tensor: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t5 - t4)
-                  .count()) +
-          "ns");
-  logInfo(" Transpose output: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t6 - t5)
-                  .count()) +
-          "ns");
-  logInfo(" Post-process detections: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t7 - t6)
-                  .count()) +
-          "ns");
-  logInfo(" Total: " +
-          std::to_string(
-              std::chrono::duration_cast<std::chrono::nanoseconds>(t7 - t0)
-                  .count()) +
-          "ns");
-
 #else
   // --- ARM IMPLEMENTATION (Original OpenCV DNN) ---
   if (q_frame.frame.empty() || m_net.empty()) {
