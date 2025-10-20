@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GompeiVision VERSION 1.0 LANGUAGES CXX)
+project(GompeiVision VERSION 1.0.3 LANGUAGES CXX)
 
 # Explicitly generate compile_commands.json for IDEs
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
