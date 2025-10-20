@@ -162,7 +162,7 @@ jobs:
     name: Publish to GitHub Pages APT Repo
     runs-on: ubuntu-latest
     needs: [build-amd64, build-arm64]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
       contents: write
 
