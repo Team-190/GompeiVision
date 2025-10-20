@@ -281,10 +281,14 @@ jobs:
           name: gompeivision-installer-arm64
           path: ./debs/
 
+      - name: Verify downloaded files
+        run: |
+          echo "Downloaded files:"
+          find ./debs -type f -print
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ./debs/*.deb
+          files: ./debs/**/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
