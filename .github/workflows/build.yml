@@ -7,6 +7,10 @@ on:
     branches:
       - main
       - feature-*
+    tags:
+      - 'v*'          # Runs when a tag like v1.0.0 is pushed
+  release:
+    types: [published] # Runs when a GitHub release is created
   pull_request:
     branches:
       - main
@@ -41,7 +45,8 @@ jobs:
         with:
           images: ghcr.io/${{ steps.repo_lowercase.outputs.name }}
           tags: |
-            type=raw,value=builder-amd64-${{ github.sha }}
+            type=raw,value=builder-amd64-${{ github.ref_name }}
+
 
       - name: Build and push builder image
         uses: docker/build-push-action@v5
@@ -111,7 +116,7 @@ jobs:
         with:
           images: ghcr.io/${{ steps.repo_lowercase.outputs.name }}
           tags: |
-            type=raw,value=builder-arm64-${{ github.sha }}
+            type=raw,value=builder-arm64-${{ github.ref_name }}
 
       - name: Build and push builder image
         uses: docker/build-push-action@v5
@@ -254,3 +259,32 @@ jobs:
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: "Deploy: Update APT repository"
           publish_branch: gh-pages
+
+  upload-release-assets:
+    name: Upload Artifacts to GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    if: github.event_name == 'release' && github.event.action == 'published'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gompeivision-installer-amd64
+          path: ./debs/
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gompeivision-installer-arm64
+          path: ./debs/
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./debs/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
