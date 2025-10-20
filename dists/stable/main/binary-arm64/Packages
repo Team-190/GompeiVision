@@ -1,14 +1,14 @@
 Package: gompeivision
-Version: 1.0
+Version: 1.0.3
 Architecture: arm64
 Maintainer: ecscher84@gmail.com
 Installed-Size: 183154
 Depends: libavcodec60 (>= 7:6.0), libavformat60 (>= 7:6.0), libavutil58 (>= 7:6.0), libbrotli1 (>= 0.6.0), libc6 (>= 2.38), libcairo2 (>= 1.2.4), libfreetype6 (>= 2.2.1), libgcc-s1 (>= 4.5), libgdk-pixbuf-2.0-0 (>= 2.22.0), libgl1, libglib2.0-0t64 (>= 2.32.0), libgtk-3-0t64 (>= 3.16.2), libharfbuzz0b (>= 0.9.9), libjpeg8 (>= 8c), libpng16-16t64 (>= 1.6.2), libprotobuf32t64 (>= 3.21.12), libstdc++6 (>= 13.1), libswscale7 (>= 7:6.0), libtiff6 (>= 4.0.3), libturbojpeg (>= 1.2.90), libwebp7 (>= 1.3.2), libwebpdemux2 (>= 1.3.2), libwebpmux3 (>= 1.3.2), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.2.0)
-Filename: dists/stable/main/binary-arm64/./GompeiVision-1.0-Linux.deb
-Size: 36245484
-MD5sum: 7be006c3d253dbc54ec19b3b96c022f0
-SHA1: 12698c7979036e192749e921bfe79779ae62ddaf
-SHA256: cd76051b8d37f44b3e606a541f27756b5313cc8ccbabb177a9f3854796b3ceeb
+Filename: dists/stable/main/binary-arm64/./GompeiVision-1.0.3-arm64.deb
+Size: 36245492
+MD5sum: 1c860e4045f239604f65683e739b6eb6
+SHA1: e9f3135bba11912fbf4cfcef49439b44434e1177
+SHA256: 6712888742d81770f29f61d9ed8896eccdf1796efd05ba5d57cfd6405ffa5ba1
 Section: devel
 Priority: optional
 Description: GompeiVision - An FRC vision solution
