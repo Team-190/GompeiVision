@@ -1,0 +1,42 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "configure build",
+            "type": "shell",
+            "options": {"cwd": "${cwd}/build"},
+            "command": "cmake",
+            "args": [
+                "..",
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+        },
+        {
+            "label": "build",
+            "type": "shell",
+            "options": {"cwd": "${cwd}/build"},
+            "command": "make",
+            "args": [],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "options": {"cwd": "${cwd}/build/src"},
+            "command": "./GompeiVision",
+            "args": [],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            },
+        },
+    ]
+}
