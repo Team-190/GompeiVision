@@ -34,7 +34,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     ppp.input()
         .tensor()
         .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
-        .set_shape({1, 640, 640, 3})
+        .set_shape({1, 1304, 1600, 3})
         .set_color_format(ov::preprocess::ColorFormat::BGR)
         .set_layout("NHWC");  // OpenCV format: batch, height, width, channels
 
@@ -44,7 +44,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
         .convert_element_type(ov::element::f32)  // Convert to float32
         .convert_color(ov::preprocess::ColorFormat::RGB)
         .scale(255.0f)
-        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR);
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, 640, 640);
     model = ppp.build();
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
@@ -127,8 +127,7 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
 
   // --- 3. Post-process Results ---
   const ov::Tensor& output_tensor = m_infer_request.get_output_tensor();
-  const float* detections =
-      static_cast<const float*>(output_tensor.data<float>());
+  const float* detections = output_tensor.data<const float>();
 
   // The output shape for YOLOv8 is [1, 84, 8400]
   // where 84 = 4 (bbox) + 80 (class scores)
@@ -139,7 +138,7 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   float x_factor = q_frame.frame.cols / m_input_width;
   float y_factor = q_frame.frame.rows / m_input_height;
   // Transpose the data from [1, 84, 8400] to [1, 8400, 84] for easier iteration
-  cv::Mat output_matrix(elements_per_detection, num_detections, CV_32F,
+  cv::Mat output_matrix(elements_per_detection, num_detections, CV_16F,
                         (void*)detections);
   cv::Mat detections_mat = output_matrix.t();
 
