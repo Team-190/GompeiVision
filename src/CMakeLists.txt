@@ -17,9 +17,11 @@ set(MANAGER_SOURCES
 set(WORKER_SOURCES
         cpp/capture/Camera.cpp
         cpp/detector/FiducialDetector.cpp
+        cpp/detector/ObjectDetector.cpp
         cpp/estimator/CameraPoseEstimator.cpp
         cpp/estimator/SingleTagPoseEstimator.cpp
         cpp/estimator/TagAngleCalculator.cpp
+        cpp/estimator/ObjectEstimator.cpp
         cpp/io/ConfigInterface.cpp
         cpp/io/FieldInterface.cpp
         cpp/io/OutputPublisher.cpp
@@ -64,6 +66,12 @@ target_link_libraries(GompeiVision PRIVATE
 target_link_libraries(GompeiVisionProcess PRIVATE
         third_party_libs
 )
+message(STATUS "DEBUG: The value of USE_OPENVINO is [${USE_OPENVINO}]")
+
+if(USE_OPENVINO)
+    find_package(OpenVINO REQUIRED)
+    target_link_libraries(GompeiVisionProcess PRIVATE openvino::runtime)
+endif()
 
 # --- Installation ---
 # CRITICAL: Install BOTH executables into the same 'bin' directory.
