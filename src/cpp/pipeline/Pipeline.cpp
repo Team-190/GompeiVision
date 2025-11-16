@@ -58,7 +58,8 @@ Pipeline::Pipeline(const std::string& device_path,
               << std::endl;
 
     m_ObjectDetector = std::make_unique<ObjectDetector>(
-        selected_model.modelPath, selected_model.namesPath);
+        selected_model.modelPath, selected_model.namesPath, m_active_width,
+        m_active_height);
     m_active_model_index = initial_model_index;  // Set the active index
   } else {
     std::cerr << "[" << m_role << "] ERROR: Invalid initial model index ("
@@ -146,8 +147,9 @@ void Pipeline::during() {
                 << std::endl;
 
       // Replace the old detector with a new one
-      m_ObjectDetector = std::make_unique<ObjectDetector>(new_model.modelPath,
-                                                          new_model.namesPath);
+      m_ObjectDetector = std::make_unique<ObjectDetector>(
+          new_model.modelPath, new_model.namesPath, m_active_width,
+          m_active_height);
       m_active_model_index = new_model_index;  // Update the active index
     } else {
       std::cerr << "[" << m_role << "] ERROR: Received invalid model index ("
@@ -254,8 +256,8 @@ void Pipeline::during() {
           m_active_height, 60);
 
       CS_Status status = 0;
-      cs::SetSinkSource(m_mjpeg_server->GetHandle(),
-                        m_cv_source.get()->GetHandle(), &status);
+      cs::SetSinkSource(m_mjpeg_server->GetHandle(), m_cv_source->GetHandle(),
+                        &status);
 
       std::cout << "[" << m_role << "] MJPEG stream available at port "
                 << m_stream_port << std::endl;
@@ -268,8 +270,7 @@ void Pipeline::during() {
 
       CS_Status annotated_status = 0;
       cs::SetSinkSource(m_annotated_mjpeg_server->GetHandle(),
-                        m_annotated_cv_source.get()->GetHandle(),
-                        &annotated_status);
+                        m_annotated_cv_source->GetHandle(), &annotated_status);
 
       std::cout << "[" << m_role
                 << "] Annotated MJPEG stream available at port "
@@ -373,11 +374,11 @@ void Pipeline::networktables_loop() {
 void Pipeline::apriltag_detection_loop() {
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
-  constexpr double alpha = 0.05;
 
   QueuedFrame frame;
   while (m_is_running) {
     if (m_frames_for_apriltag_detection.waitAndPop(frame)) {
+      constexpr double alpha = 0.05;
       FiducialImageObservation frame_observation;
       frame_observation.timestamp = frame.timestamp;
 
@@ -415,12 +416,12 @@ void Pipeline::apriltag_detection_loop() {
 void Pipeline::object_detection_loop() {
   auto last_time = std::chrono::steady_clock::now();
   double smoothed_fps = 0.0;
-  constexpr double alpha = 0.05;
 
   QueuedFrame frame;
   while (m_is_running) {
     // Wait for a frame to become available
     if (m_frames_for_object_detection.waitAndPop(frame)) {
+      constexpr double alpha = 0.05;
       // --- Calculate FPS for this thread ---
       auto current_time = std::chrono::steady_clock::now();
       std::chrono::duration<double> elapsed_seconds = current_time - last_time;

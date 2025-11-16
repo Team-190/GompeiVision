@@ -81,7 +81,8 @@ void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
   apriltags_fps_pub_.Set(result.fps);
 }
 
-void NTOutputPublisher::SendObjectDetectResult(const ObjectDetectResult& result) {
+void NTOutputPublisher::SendObjectDetectResult(
+    const ObjectDetectResult& result) {
   // --- Object detection data ---
   std::vector<double> object_data;
 
@@ -91,10 +92,7 @@ void NTOutputPublisher::SendObjectDetectResult(const ObjectDetectResult& result)
   for (const auto& obs : result.observations) {
     object_data.push_back(obs.obj_class);
     object_data.push_back(obs.confidence);
-    object_data.push_back(obs.distance);
     AppendPoseData(object_data, obs.pose);
-    object_data.insert(object_data.end(), obs.corner_angles.begin(),
-                       obs.corner_angles.end());
   }
 
   // Publish all data

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <frc/geometry/Pose3d.h>
+#include <frc/geometry/Quaternion.h>
 #include <frc/geometry/Rotation3d.h>
 #include <frc/geometry/Translation3d.h>
-#include <frc/geometry/Quaternion.h>
 
 #include <map>
 #include <opencv2/core/mat.hpp>
@@ -36,31 +36,4 @@ class ObjectEstimator {
    */
   static void calculate(ObjDetectObservation& observation,
                         const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs);
-
- private:
-  // Predefined 3D models for known object classes (in meters)
-  inline static const std::map<int, std::vector<cv::Point3f>> object_models = {
-      {0,  // Algae (Box based on 0.406400 sphere diameter)
-       {
-           cv::Point3f(-0.2032f, 0.2032f,
-                       0.0f),  // Top-left (X: -0.2032, Y: 0.2032)
-           cv::Point3f(0.2032f, 0.2032f,
-                       0.0f),  // Top-right (X: 0.2032, Y: 0.2032)
-           cv::Point3f(0.2032f, -0.2032f,
-                       0.0f),  // Bottom-right (X: 0.2032, Y: -0.2032)
-           cv::Point3f(-0.2032f, -0.2032f,
-                       0.0f)  // Bottom-left (X: -0.2032, Y: -0.2032)
-       }},
-      {1,  // Coral (Width: 0.301625, Height: 0.114300)
-       {
-           cv::Point3f(-0.1508125f, 0.05715f,
-                       0.0f),  // Top-left (X: -0.1508125, Y: 0.05715)
-           cv::Point3f(0.1508125f, 0.05715f,
-                       0.0f),  // Top-right (X: 0.1508125, Y: 0.05715)
-           cv::Point3f(0.1508125f, -0.05715f,
-                       0.0f),  // Bottom-right (X: 0.1508125, Y: -0.05715)
-           cv::Point3f(-0.1508125f, -0.05715f,
-                       0.0f)  // Bottom-left (X: -0.1508125, Y: -0.05715)
-       }},
-  };
 };

@@ -17,12 +17,11 @@
 #include "detector/ObjectDetector.h"
 #include "io/ConfigInterface.h"
 #include "io/FieldInterface.h"
-#include "util/QueuedFiducialData.h"
-#include "util/QueuedObjectData.h"  
-#include "util/ThreadSafeQueue.h"
-#include "util/QueuedFrame.h"
 #include "util/AnnotationData.h"
-
+#include "util/QueuedFiducialData.h"
+#include "util/QueuedFrame.h"
+#include "util/QueuedObjectData.h"
+#include "util/ThreadSafeQueue.h"
 
 struct UdevContextDeleter {
   void operator()(struct udev* ctx) const {
@@ -74,7 +73,6 @@ class Pipeline {
 
   std::unique_ptr<cs::MjpegServer> m_annotated_mjpeg_server;
   std::unique_ptr<cs::CvSource> m_annotated_cv_source;
-
 
   // --- Detectors ---
   FiducialDetector m_AprilTagDetector;

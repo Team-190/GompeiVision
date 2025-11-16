@@ -5,7 +5,9 @@
 #include <vector>
 
 ObjectDetector::ObjectDetector(const std::string& model_path,
-                               const std::string& class_names_path) {
+                               const std::string& class_names_path,
+                               const float input_width,
+                               const float input_height) {
   logInfo("Initializing...");
 
   // --- Load Class Names ---
@@ -34,7 +36,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
     ppp.input()
         .tensor()
         .set_element_type(ov::element::u8)  // Input will be uint8 (0-255)
-        .set_shape({1, 1304, 1600, 3})
+        .set_shape({1, input_height, input_width, 3})
         .set_color_format(ov::preprocess::ColorFormat::BGR)
         .set_layout("NHWC");  // OpenCV format: batch, height, width, channels
 
@@ -44,7 +46,8 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
         .convert_element_type(ov::element::f32)  // Convert to float32
         .convert_color(ov::preprocess::ColorFormat::RGB)
         .scale(255.0f)
-        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, 640, 640);
+        .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, m_input_width,
+                m_input_height);
     model = ppp.build();
 
     // Compile the model for the optimal device (e.g., CPU, GPU)
@@ -253,12 +256,15 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
     final_class_ids.push_back(class_ids[idx]);
     final_confidences.push_back(confidences[idx]);
 
-    observations.emplace_back(
-        class_ids[idx], confidences[idx], static_cast<double>(box.tl().x),
-        static_cast<double>(box.tl().y), static_cast<double>(box.br().x),
-        static_cast<double>(box.tl().y), static_cast<double>(box.br().x),
-        static_cast<double>(box.br().y), static_cast<double>(box.tl().x),
-        static_cast<double>(box.br().y));
+    ObjDetectObservation obs;
+    obs.obj_class = class_ids[idx];
+    obs.confidence = confidences[idx];
+    obs.corner_pixels = {
+        static_cast<double>(box.tl().x), static_cast<double>(box.tl().y),
+        static_cast<double>(box.br().x), static_cast<double>(box.tl().y),
+        static_cast<double>(box.br().x), static_cast<double>(box.br().y),
+        static_cast<double>(box.tl().x), static_cast<double>(box.br().y)};
+    observations.push_back(obs);
   }
 }
 

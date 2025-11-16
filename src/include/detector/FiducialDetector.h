@@ -2,9 +2,6 @@
 
 #include <apriltag/apriltag.h>
 
-#include <opencv2/core/mat.hpp>
-#include <vector>
-
 #include "util/QueuedFiducialData.h"
 #include "util/QueuedFrame.h"
 

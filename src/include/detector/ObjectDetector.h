@@ -20,9 +20,12 @@ class ObjectDetector {
    * @brief Constructs the ObjectDetector and loads the ONNX model.
    * @param model_path The file path to the .onnx object detection model.
    * @param class_names_path The file path to the list of class names.
+   * @param input_height Height of camera input
+   * @parem input_width Width of input frame
    */
   ObjectDetector(const std::string& model_path,
-                 const std::string& class_names_path);
+                 const std::string& class_names_path, const float input_width,
+                 const float input_height);
 
   ~ObjectDetector();
 
@@ -63,8 +66,7 @@ class ObjectDetector {
 #else
   cv::dnn::Net m_net;
 #endif
-      std::vector<std::string>
-          m_class_names;
+  std::vector<std::string> m_class_names;
 
   // MODEL PARAMETERS
   const float m_input_width = 640;
