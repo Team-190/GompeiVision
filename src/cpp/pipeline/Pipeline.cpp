@@ -26,6 +26,8 @@ Pipeline::Pipeline(const std::string& device_path,
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
+  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
+
   m_config_interface->waitForInitialization();
 
   m_config_interface->update();
@@ -58,8 +60,6 @@ Pipeline::Pipeline(const std::string& device_path,
   }
 
   while (!FieldInterface::update())
-
-  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
   m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
       *m_config_interface, m_camera_matrix, m_dist_coeffs);
