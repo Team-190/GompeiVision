@@ -11,16 +11,13 @@ Camera::Camera(const std::string& device_path, const std::string& hardwareID,
   logInfo("Initializing with OpenCV backend...");
   // Initial camera connection and configuration
   attemptReconnect();
-
-
 }
 
 // Destructor: Releases the camera resource
 Camera::~Camera() {
   logInfo("Releasing camera...");
   if (m_capture.isOpened()) {
-    m_capture.release();  // This is crucial to free the camera for other
-                          // applications.
+    m_capture.release();
   }
 }
 

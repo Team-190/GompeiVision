@@ -27,35 +27,23 @@ void CameraPoseEstimator::estimatePose(
     }
 
     if (!PoseUtils::isPoseZero(tagPose)) {
-      auto corner_0 =
-          tagPose + frc::Transform3d(frc::Translation3d(
-                                         0_m, units::meter_t(tag_size_m / 2.0),
-                                         units::meter_t(-tag_size_m / 2.0)),
-                                     frc::Rotation3d());
-      auto corner_1 =
-          tagPose + frc::Transform3d(frc::Translation3d(
-                                         0_m, units::meter_t(-tag_size_m / 2.0),
-                                         units::meter_t(-tag_size_m / 2.0)),
-                                     frc::Rotation3d());
-      auto corner_2 =
-          tagPose + frc::Transform3d(frc::Translation3d(
-                                         0_m, units::meter_t(-tag_size_m / 2.0),
-                                         units::meter_t(tag_size_m / 2.0)),
-                                     frc::Rotation3d());
-      auto corner_3 =
-          tagPose + frc::Transform3d(frc::Translation3d(
-                                         0_m, units::meter_t(tag_size_m / 2.0),
-                                         units::meter_t(tag_size_m / 2.0)),
-                                     frc::Rotation3d());
+      // The order of corners from the detector is assumed to be top-left,
+      // top-right, bottom-right, bottom-left. This must match the order of the
+      // corners from the fiducial detector. The WPILib coordinate system for
+      // tags is X forward, Y left, Z up.
+      auto half_size = units::meter_t(tag_size_m / 2.0);
+      std::vector<frc::Translation3d> corners;
+      corners.emplace_back(0_m, -half_size, half_size);   // Top-left
+      corners.emplace_back(0_m, half_size, half_size);    // Top-right
+      corners.emplace_back(0_m, half_size, -half_size);   // Bottom-right
+      corners.emplace_back(0_m, -half_size, -half_size);  // Bottom-left
 
-      all_object_points.push_back(
-          PoseUtils::wpilibTranslationToOpenCV(corner_0.Translation()));
-      all_object_points.push_back(
-          PoseUtils::wpilibTranslationToOpenCV(corner_1.Translation()));
-      all_object_points.push_back(
-          PoseUtils::wpilibTranslationToOpenCV(corner_2.Translation()));
-      all_object_points.push_back(
-          PoseUtils::wpilibTranslationToOpenCV(corner_3.Translation()));
+      for (const auto& corner : corners) {
+        auto corner_pose =
+            tagPose + frc::Transform3d{corner, frc::Rotation3d{}};
+        all_object_points.push_back(
+            PoseUtils::wpilibTranslationToOpenCV(corner_pose.Translation()));
+      }
 
       all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][0],
                                              observation.corners_pixels[i][1]));
