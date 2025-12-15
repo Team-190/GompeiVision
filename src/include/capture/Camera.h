@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <filesystem>
 #include <opencv2/videoio.hpp>  // OpenCV's header for video I/O operations
 #include <string>
 
@@ -67,6 +68,12 @@ class Camera {
   bool isConnected() const;
 
   /**
+   * @brief Gets the speed of the camera.
+   * @return The USB transfer speed of the camera (mbps)
+   */
+  double getSpeed() const;
+
+  /**
    * @brief Attempts to release and re-open the camera stream.
    * @return True if the camera was successfully reconnected, false otherwise.
    */
@@ -92,8 +99,8 @@ class Camera {
   void logError(const std::string& message) const;
 
   /**
-   * @brief Applies all stored camera configurations (resolution, exposure, etc).
-   *        Called on initial setup and after a reconnect.
+   * @brief Applies all stored camera configurations (resolution, exposure,
+   * etc). Called on initial setup and after a reconnect.
    */
   void configureCamera();
 
@@ -108,7 +115,6 @@ class Camera {
   // The core OpenCV camera object.
   cv::VideoCapture m_capture;
   bool m_is_connected = true;
-
 
   // Store requested settings to re-apply on reconnect
   int m_req_width;

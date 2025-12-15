@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -19,14 +20,15 @@
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
 #include "pipeline/PipelineHelper.h"
-#include <filesystem>
 
 Pipeline::Pipeline(const std::string& device_path,
-                   const std::string& hardware_id, const int stream_port, nt::NetworkTableInstance& nt_inst)
+                   const std::string& hardware_id, const int stream_port,
+                   nt::NetworkTableInstance& nt_inst)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
-  m_output_publisher = std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
+  m_output_publisher =
+      std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
   m_config_interface->waitForInitialization();
 
@@ -48,8 +50,8 @@ Pipeline::Pipeline(const std::string& device_path,
   // Set initial camera connection status
 
   if (!m_camera->isConnected()) {
-    std::cerr << "[" << m_role << "] WARNING: Camera failed to connect on startup."
-              << std::endl;
+    std::cerr << "[" << m_role
+              << "] WARNING: Camera failed to connect on startup." << std::endl;
   }
 
   m_camera->setExposure(m_active_exposure);
@@ -61,8 +63,8 @@ Pipeline::Pipeline(const std::string& device_path,
 
   while (!FieldInterface::update())
 
-  m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
-      *m_config_interface, m_camera_matrix, m_dist_coeffs);
+    m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+        *m_config_interface, m_camera_matrix, m_dist_coeffs);
 
   if (m_intrinsics_loaded) {
     std::cout << "[" << m_role << "] Initial Camera Matrix: "
@@ -80,7 +82,6 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
-
 }
 
 Pipeline::~Pipeline() {
@@ -214,6 +215,16 @@ void Pipeline::during() {
     m_mjpeg_server.reset();
     m_cv_source.reset();
   }
+
+  const double usb_speed = m_camera->getSpeed();
+  if (usb_speed > 0 && usb_speed < 5000) {
+    // Not running USB3, restart camera process
+    std::cerr << "[" << m_role << "] ERROR: Camera USB speed is low ("
+              << usb_speed << " Mbps). Restarting Camera process for"
+              << m_hardware_id << "." << std::endl;
+    stop();
+    kill(getpid(), SIGKILL);
+  }
 }
 
 void Pipeline::stop() {
@@ -241,7 +252,8 @@ void Pipeline::processing_loop() {
     bool frame_was_captured = false;
 
     if (m_camera) {
-      // The definitive test for a camera connection is whether we can get a frame.
+      // The definitive test for a camera connection is whether we can get a
+      // frame.
       if (m_camera->getFrame(frame.frame, timestamp)) {
         frame_was_captured = true;
       } else {
@@ -280,8 +292,8 @@ void Pipeline::processing_loop() {
         cv::Mat cameraMatrix = m_camera_matrix.clone();
         cv::Mat distCoeffs = m_dist_coeffs.clone();
 
-        CameraPoseEstimator::estimatePose(frame_observation, result, cameraMatrix,
-                                          distCoeffs, tag_size_m,
+        CameraPoseEstimator::estimatePose(frame_observation, result,
+                                          cameraMatrix, distCoeffs, tag_size_m,
                                           FieldInterface::getMap());
 
         TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
@@ -292,7 +304,7 @@ void Pipeline::processing_loop() {
       }
     } else {
       // If no frame was captured, wait a moment before the next attempt.
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   }
 }
@@ -303,14 +315,17 @@ void Pipeline::networktables_loop() {
     if (m_output_publisher) {
       m_output_publisher->sendConnectionStatus(m_camera->isConnected());
     }
+    if (m_output_publisher) {
+      m_output_publisher->sendUSBSpeed(m_camera->getSpeed());  // ( in Mbps)
+    }
 
     AprilTagResult result;
     // Use a timed wait so that we still publish connection status regularly
     // even if no new AprilTag results are available.
-    if (!m_estimated_poses.waitAndPopWithTimeout(result, std::chrono::milliseconds(50))) {
-      continue; // No new data, but we’ll loop again soon.
+    if (!m_estimated_poses.waitAndPopWithTimeout(
+            result, std::chrono::milliseconds(50))) {
+      continue;  // No new data, but we’ll loop again soon.
     }
-
 
     // If we get a result, publish it.
     if (m_output_publisher) {
