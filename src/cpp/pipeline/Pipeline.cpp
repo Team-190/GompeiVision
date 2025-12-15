@@ -15,21 +15,20 @@
 #include <thread>
 
 #include "capture/Camera.h"
-#include "detector/ObjectDetector.h"
 #include "estimator/CameraPoseEstimator.h"
-#include "estimator/ObjectEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
-#include "pipeline/ModelManager.h"
 #include "pipeline/PipelineHelper.h"
-#include "util/AnnotationData.h"
 
 Pipeline::Pipeline(const std::string& device_path,
                    const std::string& hardware_id, const int stream_port,
                    nt::NetworkTableInstance& nt_inst)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
+
+  m_output_publisher =
+      std::make_unique<NTOutputPublisher>(m_hardware_id, nt_inst);
 
   m_config_interface->waitForInitialization();
 
@@ -73,8 +72,8 @@ Pipeline::Pipeline(const std::string& device_path,
   // Set initial camera connection status
 
   if (!m_camera->isConnected()) {
-    std::cerr << "[" << m_role
-              << "] WARNING: Camera failed to connect on startup." << std::endl;
+    std::cerr << "[" << m_role << "] WARNING: Camera failed to connect on startup."
+              << std::endl;
   }
 
   m_camera->setExposure(m_active_exposure);
@@ -89,6 +88,8 @@ Pipeline::Pipeline(const std::string& device_path,
   m_frames_for_object_detection.setMaxQueue(1);
   m_frames_for_annotation.setMaxQueue(1);
 
+    m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+        *m_config_interface, m_camera_matrix, m_dist_coeffs);
   m_object_detections.setMaxQueue(1);
 
   m_output_publisher =
@@ -113,6 +114,7 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
+
 }
 
 Pipeline::~Pipeline() {
@@ -256,8 +258,8 @@ void Pipeline::during() {
           m_active_height, 60);
 
       CS_Status status = 0;
-      cs::SetSinkSource(m_mjpeg_server->GetHandle(), m_cv_source->GetHandle(),
-                        &status);
+      cs::SetSinkSource(m_mjpeg_server->GetHandle(),
+                        m_cv_source.get()->GetHandle(), &status);
 
       std::cout << "[" << m_role << "] MJPEG stream available at port "
                 << m_stream_port << std::endl;
@@ -288,6 +290,16 @@ void Pipeline::during() {
     m_annotated_mjpeg_server.reset();
     m_annotated_cv_source.reset();
   }
+
+  const double usb_speed = m_camera->getSpeed();
+  if (usb_speed > 0 && usb_speed < 5000) {
+    // Not running USB3, restart camera process
+    std::cerr << "[" << m_role << "] ERROR: Camera USB speed is low ("
+              << usb_speed << " Mbps). Restarting Camera process for"
+              << m_hardware_id << "." << std::endl;
+    stop();
+    kill(getpid(), SIGKILL);
+  }
 }
 
 void Pipeline::stop() {
@@ -303,9 +315,6 @@ void Pipeline::stop() {
 
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
-  if (m_apriltag_thread.joinable()) m_apriltag_thread.join();
-  if (m_object_detection_thread.joinable()) m_object_detection_thread.join();
-  if (m_annotation_thread.joinable()) m_annotation_thread.join();
 
   std::cout << "[" << m_role << "] All threads stopped." << std::endl;
 }
@@ -318,6 +327,8 @@ void Pipeline::processing_loop() {
 
   while (m_is_running) {
     if (m_camera) {
+      // The definitive test for a camera connection is whether we can get a
+      // frame.
       if (m_camera->getFrame(frame.frame, timestamp)) {
         frame.cameraRole = m_role;
         frame.timestamp = timestamp;
@@ -334,7 +345,7 @@ void Pipeline::processing_loop() {
 
       } else {
         m_camera->attemptReconnect();
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
       }
     } else {
       std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -459,6 +470,9 @@ void Pipeline::object_detection_loop() {
         }
         m_object_detections.push(object_result);
       }
+    } else {
+      // If no frame was captured, wait a moment before the next attempt.
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   }
 }

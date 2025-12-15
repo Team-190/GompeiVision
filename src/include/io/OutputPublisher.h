@@ -2,6 +2,7 @@
 
 #include <networktables/BooleanTopic.h>
 #include <networktables/DoubleArrayTopic.h>
+#include <networktables/DoubleTopic.h>
 #include <networktables/IntegerTopic.h>
 
 #include <string>
@@ -35,6 +36,8 @@ class OutputPublisher {
    * @param isConnected True if the camera is connected, false otherwise.
    */
   virtual void sendConnectionStatus(bool isConnected) = 0;
+
+  virtual void sendUSBSpeed(double speed) = 0;
 };
 
 /**
@@ -43,10 +46,12 @@ class OutputPublisher {
  */
 class NTOutputPublisher final : public OutputPublisher {
  public:
-  explicit NTOutputPublisher(const std::string_view hardware_id, const nt::NetworkTableInstance& nt_inst);
+  explicit NTOutputPublisher(const std::string_view hardware_id,
+                             const nt::NetworkTableInstance& nt_inst);
   void SendAprilTagResult(const AprilTagResult& result) override;
   void SendObjectDetectResult(const ObjectDetectResult& result) override;
   void sendConnectionStatus(bool isConnected) override;
+  void sendUSBSpeed(double speed) override;
 
  private:
   nt::DoubleArrayPublisher observations_pub_;
@@ -54,4 +59,5 @@ class NTOutputPublisher final : public OutputPublisher {
   nt::IntegerPublisher apriltags_fps_pub_;
   nt::IntegerPublisher objects_fps_pub_;
   nt::BooleanPublisher connection_status_pub_;
+  nt::DoublePublisher usb_speed_pub_;
 };

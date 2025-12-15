@@ -40,6 +40,7 @@ NTOutputPublisher::NTOutputPublisher(const std::string_view hardware_id,
   apriltags_fps_pub_ = table->GetIntegerTopic("fps_apriltags").Publish();
   objects_fps_pub_ = table->GetIntegerTopic("fps_objects").Publish();
   connection_status_pub_ = table->GetBooleanTopic("connected").Publish();
+  usb_speed_pub_ = table->GetDoubleTopic("usb_speed").Publish();
 }
 
 void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
@@ -105,4 +106,8 @@ void NTOutputPublisher::SendObjectDetectResult(
 
 void NTOutputPublisher::sendConnectionStatus(const bool isConnected) {
   connection_status_pub_.Set(isConnected);
+}
+
+void NTOutputPublisher::sendUSBSpeed(const double speed) {
+  usb_speed_pub_.Set(speed);
 }

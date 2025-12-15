@@ -33,6 +33,6 @@ else ()
 endif ()
 
 message(STATUS "CPack: Detected architecture ${CMAKE_SYSTEM_PROCESSOR}, setting package architecture to ${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
-
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
 # Include the main CPack module to enable packaging
 include(CPack)

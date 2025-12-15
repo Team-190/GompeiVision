@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(GompeiVision VERSION 1.0 LANGUAGES CXX)
+project(GompeiVision VERSION 1.0.3 LANGUAGES CXX)
 
 # --- Set Architecture-Specific Compiler Optimizations ---
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
