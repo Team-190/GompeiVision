@@ -5,10 +5,10 @@
 #include <networktables/DoubleTopic.h>
 #include <networktables/IntegerTopic.h>
 
-#include <string>
 #include <string_view>
 
 #include "../util/QueuedFiducialData.h"
+#include "../util/QueuedObjectData.h"
 
 /**
  * @class OutputPublisher
@@ -23,6 +23,12 @@ class OutputPublisher {
    * @param result The AprilTag result data for a single frame.
    */
   virtual void SendAprilTagResult(const AprilTagResult& result) = 0;
+
+  /**
+   * @brief Sends a complete object detection result packet.
+   * @param result The object detection result data for a single frame.
+   */
+  virtual void SendObjectDetectResult(const ObjectDetectResult& result) = 0;
 
   /**
    * @brief Sends the current camera connection status.
@@ -42,12 +48,15 @@ class NTOutputPublisher final : public OutputPublisher {
   explicit NTOutputPublisher(const std::string_view hardware_id,
                              const nt::NetworkTableInstance& nt_inst);
   void SendAprilTagResult(const AprilTagResult& result) override;
+  void SendObjectDetectResult(const ObjectDetectResult& result) override;
   void sendConnectionStatus(bool isConnected) override;
   void sendUSBSpeed(double speed) override;
 
  private:
   nt::DoubleArrayPublisher observations_pub_;
+  nt::DoubleArrayPublisher objects_pub_;
   nt::IntegerPublisher apriltags_fps_pub_;
+  nt::IntegerPublisher objects_fps_pub_;
   nt::BooleanPublisher connection_status_pub_;
   nt::DoublePublisher usb_speed_pub_;
 };

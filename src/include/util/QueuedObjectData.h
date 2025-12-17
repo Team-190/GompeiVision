@@ -1,5 +1,7 @@
 #pragma once
 
+#include <frc/geometry/Pose3d.h>
+
 #include <chrono>
 #include <string>
 #include <vector>
@@ -7,18 +9,25 @@
 /**
  * @struct ObjDetectObservation
  * @brief Represents a single detected object in a frame.
- * Corresponds to the Python 'ObjDetectObservation'.
  */
 struct ObjDetectObservation {
   int obj_class;
-  double confidence;
-  std::vector<double> corner_angles;
-  std::vector<double> corner_pixels;
-};
+  float confidence;
+  std::vector<double> corner_pixels;  // tl, tr, br, bl (x, y)
+  frc::Pose2d pose;
 
-// --- Main Result Data Packets ---
-// These are the structs that will be placed into the ThreadSafeQueue
-// for the NetworkTables thread to consume.
+  // Default constructor
+  ObjDetectObservation() = default;
+
+  // MODIFIED: Constructor for efficient emplace_back in the detector
+  ObjDetectObservation(int cls, float conf, double tl_x, double tl_y,
+                       double tr_x, double tr_y, double br_x, double br_y,
+                       double bl_x, double bl_y, frc::Pose2d pose)
+      : obj_class(cls), confidence(conf), pose(pose) {
+    // The vector is now initialized inside the constructor body
+    corner_pixels = {tl_x, tl_y, tr_x, tr_y, br_x, br_y, bl_x, bl_y};
+  }
+};
 
 /**
  * @struct ObjectDetectResult

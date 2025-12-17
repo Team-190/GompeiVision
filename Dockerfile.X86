@@ -48,7 +48,26 @@ RUN apt-get update && apt-get install -y \
     libswscale-dev \
     libzstd-dev \
     file \
+    gnupg \
+    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
+
+# =============================
+# Install Intel OpenVINO Runtime (for OpenCV DNN backend)
+# =============================
+
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+RUN gpg --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+RUN echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | tee /etc/apt/sources.list.d/intel-openvino.list
+
+RUN apt update
+RUN apt-cache search openvino
+RUN apt install -y openvino intel-opencl-icd
+
+# Set up OpenVINO environment (optional for runtime path)
+ENV OpenVINO_DIR=/usr/lib/cmake/openvino2025.3.0
+
 
 # Install any pip packages needed
 RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools

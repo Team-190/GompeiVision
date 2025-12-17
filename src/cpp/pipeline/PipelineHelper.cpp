@@ -1,18 +1,8 @@
 #include "pipeline/PipelineHelper.h"
 
-#include <frc/geometry/Pose3d.h>
-#include <frc/geometry/Quaternion.h>
-#include <frc/geometry/Rotation3d.h>
-#include <frc/geometry/Translation3d.h>
-#include <networktables/NetworkTableType.h>
-#include <units/length.h>
-
-#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <opencv2/opencv.hpp>
-#include <vector>
 
 #include "io/ConfigInterface.h"
 
