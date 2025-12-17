@@ -20,6 +20,7 @@
 #include "estimator/ObjectEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
+#include "io/FieldInterface.h"
 #include "io/OutputPublisher.h"
 #include "pipeline/ModelManager.h"
 #include "pipeline/PipelineHelper.h"

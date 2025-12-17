@@ -4,6 +4,7 @@
 #include <networktables/DoubleArrayTopic.h>
 #include <networktables/IntegerTopic.h>
 #include <networktables/NetworkTable.h>
+#include <networktables/NetworkTableInstance.h>
 #include <networktables/StringTopic.h>
 
 #include <condition_variable>
