@@ -5,7 +5,6 @@
 #include <networktables/DoubleTopic.h>
 #include <networktables/IntegerTopic.h>
 
-#include <string>
 #include <string_view>
 
 #include "../util/QueuedFiducialData.h"

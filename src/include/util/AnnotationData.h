@@ -1,6 +1,5 @@
 #pragma once
 
-#include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include <vector>
 

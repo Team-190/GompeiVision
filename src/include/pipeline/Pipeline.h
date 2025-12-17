@@ -1,10 +1,8 @@
 #pragma once
 
-#include <httplib.h>
 #include <libudev.h>
 
 #include <atomic>
-#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -16,7 +14,6 @@
 #include "detector/FiducialDetector.h"
 #include "detector/ObjectDetector.h"
 #include "io/ConfigInterface.h"
-#include "io/FieldInterface.h"
 #include "util/AnnotationData.h"
 #include "util/QueuedFiducialData.h"
 #include "util/QueuedFrame.h"

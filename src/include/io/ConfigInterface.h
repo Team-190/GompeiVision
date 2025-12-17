@@ -4,7 +4,6 @@
 #include <networktables/DoubleArrayTopic.h>
 #include <networktables/IntegerTopic.h>
 #include <networktables/NetworkTable.h>
-#include <networktables/NetworkTableInstance.h>
 #include <networktables/StringTopic.h>
 
 #include <condition_variable>
@@ -64,7 +63,6 @@ class ConfigInterface {
   nt::BooleanSubscriber m_compressedSub;
   nt::IntegerSubscriber m_modelIndexSub;
 
-
   // --- In-Memory Configuration Cache ---
   // These members hold the last valid values received from NetworkTables.
   bool m_setupMode;
@@ -77,7 +75,6 @@ class ConfigInterface {
   int m_height;
   bool m_compressed;
   int m_modelIndex;
-
 
   // --- Threading and Synchronization for Initialization ---
   std::thread m_initThread;

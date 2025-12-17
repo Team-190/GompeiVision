@@ -104,7 +104,7 @@ ObjectDetector::ObjectDetector(const std::string& model_path,
 
 ObjectDetector::~ObjectDetector() { logInfo("Shutting down..."); }
 
-void ObjectDetector::detect(const QueuedFrame& q_frame,
+void ObjectDetector::detect(const QueuedFrame& frame,
                             std::vector<ObjDetectObservation>& observations,
                             std::vector<cv::Rect>& final_boxes,
                             std::vector<int>& final_class_ids,
@@ -114,14 +114,14 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   std::vector<cv::Rect> boxes;
 
 #if USE_OPENVINO
-  if (q_frame.frame.empty() || !m_compiled_model) {
+  if (frame.frame.empty() || !m_compiled_model) {
     return;
   }
   // ---1. Preprocess ---
   ov::Tensor input_tensor(ov::element::u8,
-                          {1, static_cast<size_t>(q_frame.frame.rows),
-                           static_cast<size_t>(q_frame.frame.cols), 3},
-                          q_frame.frame.data);
+                          {1, static_cast<size_t>(frame.frame.rows),
+                           static_cast<size_t>(frame.frame.cols), 3},
+                          frame.frame.data);
 
   m_infer_request.set_input_tensor(input_tensor);
 
@@ -138,8 +138,8 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   const int num_classes = m_class_names.size();
   const int elements_per_detection = num_classes + 4;  // 4 for bbox
   const int num_detections = output_tensor.get_shape()[2];
-  float x_factor = q_frame.frame.cols / m_input_width;
-  float y_factor = q_frame.frame.rows / m_input_height;
+  float x_factor = frame.frame.cols / m_input_width;
+  float y_factor = frame.frame.rows / m_input_height;
   // Transpose the data from [1, 84, 8400] to [1, 8400, 84] for easier iteration
   cv::Mat output_matrix(elements_per_detection, num_detections, CV_16F,
                         (void*)detections);
@@ -172,13 +172,13 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
   }
 #else
   // --- ARM IMPLEMENTATION (Original OpenCV DNN) ---
-  if (q_frame.frame.empty() || m_net.empty()) {
+  if (frame.frame.empty() || m_net.empty()) {
     return;
   }
 
   // --- 1. Preprocess Frame ---
   cv::Mat blob;
-  cv::dnn::blobFromImage(q_frame.frame, blob, 1. / 255.,
+  cv::dnn::blobFromImage(frame.frame, blob, 1. / 255.,
                          cv::Size(m_input_width, m_input_height), cv::Scalar(),
                          true, false);
 
@@ -204,8 +204,8 @@ void ObjectDetector::detect(const QueuedFrame& q_frame,
           .reshape(1, {detection_matrix.size[1], detection_matrix.size[2]})
           .t();
 
-  float x_factor = q_frame.frame.cols / m_input_width;
-  float y_factor = q_frame.frame.rows / m_input_height;
+  float x_factor = frame.frame.cols / m_input_width;
+  float y_factor = frame.frame.rows / m_input_height;
 
   for (int i = 0; i < detections.rows; ++i) {
     // For each detection, find the class with the highest score

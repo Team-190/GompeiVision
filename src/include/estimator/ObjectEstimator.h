@@ -1,14 +1,8 @@
 #pragma once
 
-#include <frc/geometry/Pose3d.h>
-#include <frc/geometry/Quaternion.h>
-#include <frc/geometry/Rotation3d.h>
-#include <frc/geometry/Translation3d.h>
-
-#include <map>
 #include <opencv2/core/mat.hpp>
-#include <vector>
 
+#include "GamePiecePosEstimator.h"
 #include "util/QueuedObjectData.h"
 
 /**
@@ -34,6 +28,15 @@ class ObjectEstimator {
    * @param cameraMatrix The camera's intrinsic matrix.
    * @param distCoeffs The camera's distortion coefficients.
    */
-  static void calculate(ObjDetectObservation& observation,
-                        const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs);
+  void calculate(ObjDetectObservation& observation, const cv::Mat& cameraMatrix,
+                 const cv::Mat& distCoeffs) const;
+
+  static ObjectEstimator& GetInstance(float width, float height);
+
+ private:
+  ObjectEstimator(float width, float height);  // private
+
+  static ObjectEstimator* instance;
+
+  GamePiecePosEstimator posEstimator;
 };

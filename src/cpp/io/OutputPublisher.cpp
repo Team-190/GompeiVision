@@ -93,7 +93,7 @@ void NTOutputPublisher::SendObjectDetectResult(
   for (const auto& obs : result.observations) {
     object_data.push_back(obs.obj_class);
     object_data.push_back(obs.confidence);
-    AppendPoseData(object_data, obs.pose);
+    AppendPoseData(object_data, frc::Pose3d(obs.pose));
   }
 
   // Publish all data

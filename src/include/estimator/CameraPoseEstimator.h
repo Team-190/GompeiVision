@@ -1,10 +1,7 @@
 #pragma once
 
 #include <map>
-#include <optional>
-#include <vector>
 
-#include "fieldImages/fields/fields.h"
 #include "opencv2/opencv.hpp"
 #include "util/QueuedFiducialData.h"
 

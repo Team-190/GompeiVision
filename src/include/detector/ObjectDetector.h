@@ -5,11 +5,9 @@
 
 #if USE_OPENVINO
 #include <openvino/openvino.hpp>
-#include <openvino/runtime/properties.hpp>
 #endif
 
 #include <opencv2/dnn.hpp>
-#include <opencv2/imgproc.hpp>
 
 #include "util/QueuedFrame.h"
 #include "util/QueuedObjectData.h"
@@ -20,6 +18,7 @@ class ObjectDetector {
    * @brief Constructs the ObjectDetector and loads the ONNX model.
    * @param model_path The file path to the .onnx object detection model.
    * @param class_names_path The file path to the list of class names.
+   * @param input_width Width of camera input
    * @param input_height Height of camera input
    * @parem input_width Width of input frame
    */
@@ -39,6 +38,8 @@ class ObjectDetector {
    * @param observations A reference to the result object to be populated.
    * @param final_boxes A vector to be populated with the cv::Rect for each
    * observation.
+   * @param final_class_ids Class ID (based on the .names file) of the model
+   * @param final_confidences Confidence score for each detection.
    */
   void detect(const QueuedFrame& frame,
               std::vector<ObjDetectObservation>& observations,

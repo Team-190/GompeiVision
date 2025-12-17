@@ -15,10 +15,13 @@
 #include <thread>
 
 #include "capture/Camera.h"
+#include "detector/ObjectDetector.h"
 #include "estimator/CameraPoseEstimator.h"
+#include "estimator/ObjectEstimator.h"
 #include "estimator/SingleTagPoseEstimator.h"
 #include "estimator/TagAngleCalculator.h"
 #include "io/OutputPublisher.h"
+#include "pipeline/ModelManager.h"
 #include "pipeline/PipelineHelper.h"
 
 Pipeline::Pipeline(const std::string& device_path,
@@ -72,8 +75,8 @@ Pipeline::Pipeline(const std::string& device_path,
   // Set initial camera connection status
 
   if (!m_camera->isConnected()) {
-    std::cerr << "[" << m_role << "] WARNING: Camera failed to connect on startup."
-              << std::endl;
+    std::cerr << "[" << m_role
+              << "] WARNING: Camera failed to connect on startup." << std::endl;
   }
 
   m_camera->setExposure(m_active_exposure);
@@ -83,13 +86,14 @@ Pipeline::Pipeline(const std::string& device_path,
     FieldInterface::initialize(nt_inst);
   }
 
-  while (!FieldInterface::update());
+  while (!FieldInterface::update()) {
+  }
 
   m_frames_for_object_detection.setMaxQueue(1);
   m_frames_for_annotation.setMaxQueue(1);
 
-    m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
-        *m_config_interface, m_camera_matrix, m_dist_coeffs);
+  m_intrinsics_loaded = PipelineHelper::load_camera_intrinsics(
+      *m_config_interface, m_camera_matrix, m_dist_coeffs);
   m_object_detections.setMaxQueue(1);
 
   m_output_publisher =
@@ -114,7 +118,6 @@ Pipeline::Pipeline(const std::string& device_path,
 
   std::cout << "[" << m_role
             << "] Initialized pipeline with ID: " << hardware_id << std::endl;
-
 }
 
 Pipeline::~Pipeline() {
@@ -465,7 +468,8 @@ void Pipeline::object_detection_loop() {
         object_result.fps = smoothed_fps;
 
         for (auto& obs : raw_observations) {
-          ObjectEstimator::calculate(obs, m_camera_matrix, m_dist_coeffs);
+          ObjectEstimator::GetInstance(m_active_width, m_active_height)
+              .calculate(obs, m_camera_matrix, m_dist_coeffs);
           object_result.observations.push_back(obs);
         }
         m_object_detections.push(object_result);
