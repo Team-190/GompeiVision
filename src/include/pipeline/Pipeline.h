@@ -38,6 +38,7 @@ class Pipeline {
   bool isRunning() const;
 
  private:
+  void capture_loop();
   void processing_loop();
   void networktables_loop();
 
@@ -66,9 +67,11 @@ class Pipeline {
   FiducialDetector m_AprilTagDetector;
 
   // --- Pipeline Data Flow ---
+  ThreadSafeQueue<QueuedFrame> m_captured_frames;
   ThreadSafeQueue<AprilTagResult> m_estimated_poses;
 
   // Threads & Control
+  std::thread m_capture_thread;
   std::thread m_processing_thread;
   std::thread m_networktables_thread;
 

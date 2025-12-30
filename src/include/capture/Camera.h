@@ -45,7 +45,7 @@ class Camera {
    * @return True if a new frame was successfully captured, false otherwise.
    */
   bool getFrame(cv::Mat& frame,
-                std::chrono::time_point<std::chrono::system_clock>& timestamp);
+                int64_t& timestamp);
 
   /**
    * @brief Sets the exposure value for the camera.

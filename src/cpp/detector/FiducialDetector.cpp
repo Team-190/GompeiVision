@@ -32,7 +32,7 @@ FiducialDetector::FiducialDetector() {
 
   // Set detector parameters (can be tuned)
   tagDetector->quad_decimate = 4.0;
-  tagDetector->nthreads = 1;
+  tagDetector->nthreads = 2;
   tagDetector->debug = false;
   tagDetector->refine_edges = true;
 }

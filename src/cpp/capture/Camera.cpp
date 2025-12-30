@@ -1,16 +1,15 @@
 #include "capture/Camera.h"
 
-#include <fstream>
+#include <ntcore_cpp.h>
+
 #include <iostream>
 #include <thread>
 
 // Constructor: Initializes and opens the camera using OpenCV
 Camera::Camera(const std::string& device_path, const std::string& hardwareID,
                const int width, const int height)
-    : m_hardwareID(hardwareID),
-      m_device_path(device_path),
-      m_req_width(width),
-      m_req_height(height) {
+    : m_hardwareID(hardwareID), m_device_path(device_path),
+      m_req_width(width), m_req_height(height) {
   logInfo("Initializing with OpenCV backend...");
   // Initial camera connection and configuration
   attemptReconnect();
@@ -20,15 +19,14 @@ Camera::Camera(const std::string& device_path, const std::string& hardwareID,
 Camera::~Camera() {
   logInfo("Releasing camera...");
   if (m_capture.isOpened()) {
-    m_capture.release();  // This is crucial to free the camera for other
-                          // applications.
+    m_capture.release();
   }
 }
 
 // Captures a new frame from the camera
 bool Camera::getFrame(
     cv::Mat& frame,
-    std::chrono::time_point<std::chrono::system_clock>& timestamp) {
+    int64_t& timestamp) {
   if (!isConnected()) {
     m_is_connected = false;
     return false;
@@ -36,7 +34,7 @@ bool Camera::getFrame(
 
   // Atomically grab and retrieve the frame.
   if (m_capture.read(frame)) {
-    timestamp = std::chrono::system_clock::now();
+    timestamp = nt::Now();
     m_is_connected = true;
     return true;  // Frame captured successfully.
   }
@@ -46,36 +44,10 @@ bool Camera::getFrame(
   return false;
 }
 
-double Camera::getSpeed() const {
-  int usb_speed = -1;
-  if (!m_device_path.empty()) {
-    try {
-      auto node = std::filesystem::path(m_device_path).filename().string();
-      auto dev = std::filesystem::canonical("/sys/class/video4linux/" + node +
-                                            "/device");
-
-      while (dev.has_parent_path()) {
-        auto sp = dev.string() + "/speed";
-        if (std::filesystem::exists(sp)) {
-          std::ifstream f(sp);
-          int s = -1;
-          if (f >> s) usb_speed = s;
-          break;
-        }
-        dev = dev.parent_path();
-      }
-    } catch (std::exception& e) {
-      std::cerr << "Failed to read USB speed: " << e.what() << std::endl;
-    }
-  }
-  return usb_speed;
-}
-
 // Sets the camera's exposure property
 bool Camera::setExposure(const int value) {
   if (!isConnected()) {
-    m_last_exposure =
-        value;  // Store even if not connected, will apply on reconnect
+    m_last_exposure = value; // Store even if not connected, will apply on reconnect
     return false;
   }
   logInfo("Setting exposure to " + std::to_string(value));
@@ -90,8 +62,7 @@ bool Camera::setExposure(const int value) {
 // Sets the camera's brightness property
 bool Camera::setBrightness(const int value) {
   if (!isConnected()) {
-    m_last_brightness =
-        value;  // Store even if not connected, will apply on reconnect
+    m_last_brightness = value; // Store even if not connected, will apply on reconnect
     return false;
   }
   logInfo("Setting brightness to " + std::to_string(value));
@@ -107,19 +78,19 @@ bool Camera::setBrightness(const int value) {
 bool Camera::isConnected() const { return m_capture.isOpened(); }
 
 std::string Camera::getFormat() {
-  if (!isConnected()) {
-    return "";
-  }
-  int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
-  if (fourcc == 0) {
-    return "";
-  }
-  std::string formatStr;
-  formatStr += (fourcc & 0XFF);
-  formatStr += ((fourcc >> 8) & 0XFF);
-  formatStr += ((fourcc >> 16) & 0XFF);
-  formatStr += ((fourcc >> 24) & 0XFF);
-  return formatStr;
+    if (!isConnected()) {
+        return "";
+    }
+    int fourcc = static_cast<int>(m_capture.get(cv::CAP_PROP_FOURCC));
+    if (fourcc == 0) {
+        return "";
+    }
+    std::string formatStr;
+    formatStr += (fourcc & 0XFF);
+    formatStr += ((fourcc >> 8) & 0XFF);
+    formatStr += ((fourcc >> 16) & 0XFF);
+    formatStr += ((fourcc >> 24) & 0XFF);
+    return formatStr;
 }
 
 // Helper for logging informational messages
@@ -206,12 +177,13 @@ bool Camera::attemptReconnect() {
   // Open the camera stream using the specified device path and the Video4Linux
   // backend. Using V4L2 is often more reliable on Linux for setting properties.
   m_capture.open(m_device_path, cv::CAP_V4L2);
+  m_capture.set(cv::CAP_PROP_BUFFERSIZE, 4);
+  m_capture.set(cv::CAP_PROP_FPS, 60);
+  m_capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'V'));
 
   if (!m_capture.isOpened()) {
-    logError("Failed to open camera stream at path " + m_device_path +
-             ". Retrying in 1 second...");
-    std::this_thread::sleep_for(
-        std::chrono::seconds(1));  // Wait before retrying
+    logError("Failed to open camera stream at path " + m_device_path + ". Retrying in 1 second...");
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait before retrying
     return false;
   }
 

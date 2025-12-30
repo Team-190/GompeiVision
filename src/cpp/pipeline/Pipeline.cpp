@@ -92,6 +92,7 @@ Pipeline::~Pipeline() {
 void Pipeline::start() {
   if (m_is_running) return;
   m_is_running = true;
+  m_capture_thread = std::thread(&Pipeline::capture_loop, this);
   m_processing_thread = std::thread(&Pipeline::processing_loop, this);
   m_networktables_thread = std::thread(&Pipeline::networktables_loop, this);
 }
@@ -215,16 +216,6 @@ void Pipeline::during() {
     m_mjpeg_server.reset();
     m_cv_source.reset();
   }
-
-  const double usb_speed = m_camera->getSpeed();
-  if (usb_speed > 0 && usb_speed < 5000) {
-    // Not running USB3, restart camera process
-    std::cerr << "[" << m_role << "] ERROR: Camera USB speed is low ("
-              << usb_speed << " Mbps). Restarting Camera process for"
-              << m_hardware_id << "." << std::endl;
-    stop();
-    kill(getpid(), SIGKILL);
-  }
 }
 
 void Pipeline::stop() {
@@ -233,6 +224,7 @@ void Pipeline::stop() {
 
   m_estimated_poses.shutdown();
 
+  if (m_capture_thread.joinable()) m_capture_thread.join();
   if (m_processing_thread.joinable()) m_processing_thread.join();
   if (m_networktables_thread.joinable()) m_networktables_thread.join();
 
@@ -241,47 +233,55 @@ void Pipeline::stop() {
 
 bool Pipeline::isRunning() const { return m_is_running; }
 
-void Pipeline::processing_loop() {
-  auto last_time = std::chrono::steady_clock::now();
-  double smoothed_fps = 0.0;
-
-  QueuedFrame frame;
-  std::chrono::time_point<std::chrono::system_clock> timestamp;
+void Pipeline::capture_loop() {
+  uint8_t frame_count = 0;
+  auto start_time = std::chrono::high_resolution_clock::now();
 
   while (m_is_running) {
+    QueuedFrame frame;
     bool frame_was_captured = false;
 
     if (m_camera) {
-      // The definitive test for a camera connection is whether we can get a
-      // frame.
-      if (m_camera->getFrame(frame.frame, timestamp)) {
+      if (m_camera->getFrame(frame.frame, frame.timestamp)) {
         frame_was_captured = true;
+        m_captured_frames.push(frame);
+        frame_count++;  // Increment captured frames
       } else {
-        // If getting a frame fails, the camera is considered disconnected.
-        // Attempt to reconnect for the next cycle.
         m_camera->attemptReconnect();
       }
     }
 
-    // Update the shared connection status flag once per loop iteration.
     if (frame_was_captured) {
-      // --- Frame processing continues only if a frame was captured ---
-      constexpr double alpha = 0.05;
-
       if (m_config_interface->isSetupMode() && m_cv_source) {
         m_cv_source->PutFrame(frame.frame);
       }
+    }
 
+    // Check if one second has passed
+    auto now = std::chrono::high_resolution_clock::now();
+    double elapsed = std::chrono::duration<double>(now - start_time).count();
+    if (elapsed >= 1.0) {
+      std::cout << "[" << m_role << "] Capture FPS: " << frame_count
+                << std::endl;
+      if (m_output_publisher) {
+        m_output_publisher->SendCaptureFPS(frame_count);
+      }
+      frame_count = 0;   // Reset counter
+      start_time = now;  // Reset timer
+    }
+  }
+}
+
+void Pipeline::processing_loop() {
+  uint8_t frame_count = 0;
+  auto start_time = std::chrono::high_resolution_clock::now();
+
+  while (m_is_running) {
+    if (QueuedFrame frame; m_captured_frames.waitAndPopWithTimeout(
+            frame, std::chrono::milliseconds(1))) {
       FiducialImageObservation frame_observation;
-      frame_observation.timestamp = timestamp;
-
       m_AprilTagDetector.detect(frame, frame_observation);
-
-      auto current_time = std::chrono::steady_clock::now();
-      std::chrono::duration<double> elapsed_seconds = current_time - last_time;
-      last_time = current_time;
-      const double instant_fps = 1.0 / elapsed_seconds.count();
-      smoothed_fps = (1.0 - alpha) * smoothed_fps + alpha * instant_fps;
+      frame_observation.timestamp = frame.timestamp;
 
       if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
         AprilTagResult result;
@@ -299,12 +299,23 @@ void Pipeline::processing_loop() {
         TagAngleCalculator::calculate(frame_observation, result, cameraMatrix,
                                       distCoeffs, tag_size_m);
 
-        result.fps = smoothed_fps;
         m_estimated_poses.push(result);
       }
-    } else {
-      // If no frame was captured, wait a moment before the next attempt.
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+      frame_count++;  // Increment processed frames
+
+      // Check if one second has passed
+      auto now = std::chrono::high_resolution_clock::now();
+      double elapsed = std::chrono::duration<double>(now - start_time).count();
+      if (elapsed >= 1.0) {
+        if (m_output_publisher) {
+          m_output_publisher->SendProcessingFPS(frame_count);
+        }
+        std::cout << "[" << m_role << "] Processing FPS: " << frame_count
+                  << std::endl;
+        frame_count = 0;   // Reset counter
+        start_time = now;  // Reset timer
+      }
     }
   }
 }
@@ -313,22 +324,14 @@ void Pipeline::networktables_loop() {
   while (m_is_running) {
     // Always publish the latest known connection status.
     if (m_output_publisher) {
-      m_output_publisher->sendConnectionStatus(m_camera->isConnected());
-    }
-    if (m_output_publisher) {
-      m_output_publisher->sendUSBSpeed(m_camera->getSpeed());  // ( in Mbps)
-    }
+      m_output_publisher->SendConnectionStatus(m_camera->isConnected());
 
-    AprilTagResult result;
-    // Use a timed wait so that we still publish connection status regularly
-    // even if no new AprilTag results are available.
-    if (!m_estimated_poses.waitAndPopWithTimeout(
-            result, std::chrono::milliseconds(50))) {
-      continue;  // No new data, but we’ll loop again soon.
-    }
+      AprilTagResult result;
+      if (!m_estimated_poses.waitAndPopWithTimeout(
+              result, std::chrono::milliseconds(1))) {
+        continue;
+      }
 
-    // If we get a result, publish it.
-    if (m_output_publisher) {
       m_output_publisher->SendAprilTagResult(result);
     }
   }

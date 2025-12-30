@@ -34,11 +34,15 @@ NTOutputPublisher::NTOutputPublisher(const std::string_view hardware_id,
   constexpr nt::PubSubOptions options{
       .periodic = 0.01, .sendAll = true, .keepDuplicates = true};
 
-  observations_pub_ =
+  m_connection_status_pub = table->GetBooleanTopic("connected").Publish();
+  m_observations_pub =
       table->GetDoubleArrayTopic("observations").Publish(options);
-  apriltags_fps_pub_ = table->GetIntegerTopic("fps_apriltags").Publish();
-  connection_status_pub_ = table->GetBooleanTopic("connected").Publish();
-  usb_speed_pub_ = table->GetDoubleTopic("usb_speed").Publish();
+  m_capture_fps_pub = table->GetIntegerTopic("capture_fps").Publish();
+  m_processing_fps_pub = table->GetIntegerTopic("processing_fps").Publish();
+}
+
+void NTOutputPublisher::SendConnectionStatus(const bool isConnected) {
+  m_connection_status_pub.Set(isConnected);
 }
 
 void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
@@ -73,17 +77,13 @@ void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
   }
 
   // Publish all data
-  observations_pub_.Set(observation_data,
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            result.timestamp.time_since_epoch())
-                            .count());
-  apriltags_fps_pub_.Set(result.fps);
+  m_observations_pub.Set(observation_data, result.timestamp);
 }
 
-void NTOutputPublisher::sendConnectionStatus(const bool isConnected) {
-  connection_status_pub_.Set(isConnected);
+void NTOutputPublisher::SendCaptureFPS(const uint8_t& fps) {
+  m_capture_fps_pub.Set(fps);
 }
 
-void NTOutputPublisher::sendUSBSpeed(const double speed) {
-  usb_speed_pub_.Set(speed);
+void NTOutputPublisher::SendProcessingFPS(const uint8_t& fps) {
+  m_processing_fps_pub.Set(fps);
 }
