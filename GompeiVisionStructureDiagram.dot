@@ -1,0 +1,163 @@
+digraph GompeiVisionStructureDiagram {
+    compound=true;
+    graph
+        [splines=spline
+        nodesep=1.0,
+        ranksep=1.0
+    ];
+    node [shape=box];
+    rankdir=LR;
+
+    subgraph cluster7 {
+        label = "Robot Code (roboRIO)";
+        RobotState;
+        RobotData;
+    }
+
+    subgraph cluster0 {
+        label = "GompeiVision (Coprocessor)";
+
+        subgraph cluster1 {
+            label = "Capture Process";
+
+            MonoCameras;
+            StereoCameras;
+
+            MonoFrames;
+            StereoFrames;
+
+            MonoCameras -> MonoFrames;
+            StereoCameras -> StereoFrames;
+
+            subgraph cluster_framebus {
+                label = "FrameBus (Routing Layer)";
+
+                MonoFrameBus;
+                StereoFrameBus;
+
+                MonoFrames -> MonoFrameBus;
+                StereoFrames -> StereoFrameBus;
+            }
+        }
+
+        subgraph cluster2 {
+            label = "Per-Frame Processing (Pose Measurement Generation)";
+
+            MonoTagPnP;
+            StereoTagPnP;
+
+            ObjectRecognition;
+            ObjectLocalization;
+
+            // --- modality-aware routing ---
+            MonoFrameBus -> MonoTagPnP;
+            StereoFrameBus -> StereoTagPnP;
+
+            MonoFrameBus -> ObjectRecognition;
+            StereoFrameBus -> ObjectRecognition;
+
+            ObjectRecognition -> ObjectLocalization;
+        }
+
+        subgraph cluster4 {
+            label = "Independent Estimation Systems (SLAM / Localization)";
+
+            TagSLAM;
+            RobotPoseEstimate;
+            RefinedTagMap;
+
+            VSLAM;
+            VSLAMPose;
+            LocalGeometricMap;
+
+            MCL;
+            MCLPose;
+
+            MonoFrameBus -> TagSLAM;
+            StereoFrameBus -> TagSLAM;
+
+            MonoFrameBus -> VSLAM [style="dashed", label="manually triggered only"];
+            StereoFrameBus -> VSLAM;
+
+            MonoFrameBus -> MCL[style="dashed", label="manually triggered only"];
+            StereoFrameBus -> MCL;
+
+            RobotData -> TagSLAM;
+            RobotData -> VSLAM;
+            RobotData -> MCL;
+
+            TagSLAM -> RobotPoseEstimate;
+            TagSLAM -> RefinedTagMap;
+
+            VSLAM -> VSLAMPose;
+            VSLAM -> LocalGeometricMap;
+
+            MCL -> MCLPose;
+        }
+
+        subgraph cluster5 {
+            label = "Vision Output (NetworkTables)";
+
+            PoseMeasurements;
+            ObjectData;
+            MapData;
+
+            MonoTagPnP -> PoseMeasurements;
+            StereoTagPnP -> PoseMeasurements;
+
+            ObjectLocalization -> ObjectData;
+
+            RobotPoseEstimate -> PoseMeasurements;
+            VSLAMPose -> PoseMeasurements;
+            MCLPose -> PoseMeasurements;
+
+            RefinedTagMap -> MapData;
+        }
+
+        subgraph cluster6 {
+            label = "Persistent Storage (Coprocessor)";
+
+            MapStorage;
+            SavedVSLAMMap;
+
+            LocalGeometricMap -> MapStorage [
+                label="save VSLAM map"
+            ];
+
+            MapStorage -> SavedVSLAMMap [
+                label="load geometric prior"
+            ];
+
+            SavedVSLAMMap -> VSLAM [
+                label="initialization prior",
+                style="dashed"
+            ];
+
+            SavedVSLAMMap -> MCL [
+                label="initialization prior",
+                style="dashed"
+            ];
+        }
+    }
+
+
+    PoseMeasurements -> RobotState [
+        style="dotted",
+        label="multi-source pose inputs"
+    ];
+
+    ObjectData -> RobotState [
+        style="dotted",
+        label="object poses"
+    ];
+
+    MapData -> RobotState [
+        style="dotted",
+        label="refined apriltag map"
+    ];
+
+    RobotState -> RobotData [
+        label="Heading\nModulePositions\nAprilTagMap",
+        lhead=cluster3
+    ];
+}
