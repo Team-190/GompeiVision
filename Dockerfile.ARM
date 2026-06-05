@@ -51,7 +51,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
-RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools
+RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools gcovr
 
 # Set a temporary working directory for building our dependencies
 WORKDIR /opt

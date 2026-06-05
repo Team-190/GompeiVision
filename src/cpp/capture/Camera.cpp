@@ -191,3 +191,7 @@ bool Camera::attemptReconnect() {
   configureCamera();
   return true;
 }
+
+double Camera::getSpeed() const {
+  return 480.0; // Return USB 2.0 speed as a default fallback
+}

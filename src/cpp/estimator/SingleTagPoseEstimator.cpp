@@ -41,9 +41,9 @@ void SingleTagPoseEstimator::estimatePose(
       FiducialPoseObservation pose;
       pose.tag_id = observation.tag_ids[i];
       pose.error_0 = errors[0];
-      pose.pose_0 = PoseUtils::openCvPoseToWpilib(tvecs[0], rvecs[0]);
+      pose.pose_0 = PoseUtils::openCvPoseToWpilib(rvecs[0], tvecs[0]);
       pose.error_1 = errors[1];
-      pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
+      pose.pose_1 = PoseUtils::openCvPoseToWpilib(rvecs[1], tvecs[1]);
 
       units::meter_t distance;
 

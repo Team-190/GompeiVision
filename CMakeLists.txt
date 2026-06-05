@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(third_party)
 add_subdirectory(src)
+enable_testing()
+add_subdirectory(test)
 
 install(DIRECTORY /usr/local/lib/
         DESTINATION lib
