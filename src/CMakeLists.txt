@@ -20,12 +20,19 @@ set(WORKER_SOURCES
 add_executable(GompeiVision ${MANAGER_SOURCES})
 add_executable(GompeiVisionProcess ${WORKER_SOURCES})
 
-set_property(TARGET GompeiVision GompeiVisionProcess PROPERTY CXX_STANDARD 17)
-set_property(TARGET GompeiVision GompeiVisionProcess PROPERTY CXX_STANDARD_REQUIRED ON)
+# Enable Link-Time Optimization (LTO) if supported
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
 
 set_target_properties(GompeiVision GompeiVisionProcess PROPERTIES
         INSTALL_RPATH "$ORIGIN/../lib"
 )
+
+if(ipo_supported)
+    set_target_properties(GompeiVision GompeiVisionProcess PROPERTIES
+            INTERPROCEDURAL_OPTIMIZATION TRUE
+    )
+endif()
 
 target_include_directories(GompeiVision PUBLIC
         "${CMAKE_SOURCE_DIR}/src/include"

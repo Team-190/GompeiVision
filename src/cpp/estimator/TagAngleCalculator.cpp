@@ -23,7 +23,6 @@ void TagAngleCalculator::calculate(const FiducialImageObservation& observation,
       {-tag_size_m / 2.0, -tag_size_m / 2.0, 0.0}  // Bottom-left
   };
 
-  const cv::Mat invCameraMatrix = cameraMatrix.inv();
   result.tag_angles.reserve(observation.tag_ids.size());
 
   for (size_t i = 0; i < observation.tag_ids.size(); ++i) {
@@ -58,24 +57,20 @@ void TagAngleCalculator::calculate(const FiducialImageObservation& observation,
       continue;
     }
 
-    // 3. Undistort corner points for angle calculation
+    // 3. Undistort corner points directly to normalized image coordinates.
+    // By leaving the last parameter (P) empty, cv::undistortPoints returns
+    // normalized coordinates (x_norm, y_norm), which eliminates the need to invert
+    // the camera matrix and perform manual matrix multiplication for each point.
     std::vector<cv::Point2f> undistorted_points;
     cv::undistortPoints(image_points, undistorted_points, cameraMatrix,
-                        distCoeffs, cv::noArray(), cameraMatrix);
+                        distCoeffs);
 
-    // 4. Calculate viewing angles from undistorted points
+    // 4. Calculate viewing angles directly from normalized coordinates
     std::vector<double> corner_angles;
     corner_angles.reserve(8);
     for (const auto& corner : undistorted_points) {
-      cv::Mat p(3, 1, CV_64F);
-      p.at<double>(0, 0) = corner.x;
-      p.at<double>(1, 0) = corner.y;
-      p.at<double>(2, 0) = 1.0;
-
-      cv::Mat vec = invCameraMatrix * p;
-
-      corner_angles.push_back(std::atan(vec.at<double>(0, 0)));  // Angle X
-      corner_angles.push_back(std::atan(vec.at<double>(1, 0)));  // Angle Y
+      corner_angles.push_back(std::atan(corner.x));  // Angle X
+      corner_angles.push_back(std::atan(corner.y));  // Angle Y
     }
 
     // 5. Store the final result for this tag

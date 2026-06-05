@@ -48,6 +48,7 @@ class Pipeline {
   std::string m_role;
   int m_stream_port;
   std::mutex m_role_mutex;
+  std::mutex m_intrinsics_mutex;
 
   // Cached settings to prevent unnecessary reloads
   int m_active_width = 0;

@@ -21,41 +21,40 @@ void CameraPoseEstimator::estimatePose(
   std::vector<frc::Pose3d> tagPoses;
 
   for (int i = 0; i < observation.tag_ids.size(); i++) {
-    auto tagPose = frc::Pose3d();
-    for (const auto& key : field_layout | std::views::keys) {
-      if (key == observation.tag_ids[i]) tagPose = field_layout.at(key);
-    }
+    auto it = field_layout.find(observation.tag_ids[i]);
+    if (it != field_layout.end()) {
+      const auto& tagPose = it->second;
+      if (!PoseUtils::isPoseZero(tagPose)) {
+        // The order of corners from the detector is assumed to be top-left,
+        // top-right, bottom-right, bottom-left. This must match the order of the
+        // corners from the fiducial detector. The WPILib coordinate system for
+        // tags is X forward, Y left, Z up.
+        auto half_size = units::meter_t(tag_size_m / 2.0);
+        std::vector<frc::Translation3d> corners;
+        corners.emplace_back(0_m, -half_size, half_size);   // Top-left
+        corners.emplace_back(0_m, half_size, half_size);    // Top-right
+        corners.emplace_back(0_m, half_size, -half_size);   // Bottom-right
+        corners.emplace_back(0_m, -half_size, -half_size);  // Bottom-left
 
-    if (!PoseUtils::isPoseZero(tagPose)) {
-      // The order of corners from the detector is assumed to be top-left,
-      // top-right, bottom-right, bottom-left. This must match the order of the
-      // corners from the fiducial detector. The WPILib coordinate system for
-      // tags is X forward, Y left, Z up.
-      auto half_size = units::meter_t(tag_size_m / 2.0);
-      std::vector<frc::Translation3d> corners;
-      corners.emplace_back(0_m, -half_size, half_size);   // Top-left
-      corners.emplace_back(0_m, half_size, half_size);    // Top-right
-      corners.emplace_back(0_m, half_size, -half_size);   // Bottom-right
-      corners.emplace_back(0_m, -half_size, -half_size);  // Bottom-left
+        for (const auto& corner : corners) {
+          auto corner_pose =
+              tagPose + frc::Transform3d{corner, frc::Rotation3d{}};
+          all_object_points.push_back(
+              PoseUtils::wpilibTranslationToOpenCV(corner_pose.Translation()));
+        }
 
-      for (const auto& corner : corners) {
-        auto corner_pose =
-            tagPose + frc::Transform3d{corner, frc::Rotation3d{}};
-        all_object_points.push_back(
-            PoseUtils::wpilibTranslationToOpenCV(corner_pose.Translation()));
+        all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][0],
+                                               observation.corners_pixels[i][1]));
+        all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][2],
+                                               observation.corners_pixels[i][3]));
+        all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][4],
+                                               observation.corners_pixels[i][5]));
+        all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][6],
+                                               observation.corners_pixels[i][7]));
+
+        tags_used_ids.push_back(observation.tag_ids[i]);
+        tagPoses.push_back(tagPose);
       }
-
-      all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][0],
-                                             observation.corners_pixels[i][1]));
-      all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][2],
-                                             observation.corners_pixels[i][3]));
-      all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][4],
-                                             observation.corners_pixels[i][5]));
-      all_image_points.push_back(cv::Point2f(observation.corners_pixels[i][6],
-                                             observation.corners_pixels[i][7]));
-
-      tags_used_ids.push_back(observation.tag_ids[i]);
-      tagPoses.push_back(tagPose);
     }
   }
 

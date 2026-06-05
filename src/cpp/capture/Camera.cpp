@@ -180,6 +180,7 @@ bool Camera::attemptReconnect() {
   m_capture.set(cv::CAP_PROP_BUFFERSIZE, 4);
   m_capture.set(cv::CAP_PROP_FPS, 60);
   m_capture.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'V'));
+  m_capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
 
   if (!m_capture.isOpened()) {
     logError("Failed to open camera stream at path " + m_device_path + ". Retrying in 1 second...");

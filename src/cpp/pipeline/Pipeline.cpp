@@ -108,26 +108,31 @@ void Pipeline::during() {
       *m_config_interface, new_camera_matrix, new_dist_coeffs);
 
   bool changed = false;
-  if (m_intrinsics_loaded != new_intrinsics_loaded) {
-    changed = true;
-  } else if (new_intrinsics_loaded) {
-    if (cv::norm(m_camera_matrix, new_camera_matrix, cv::NORM_L1) != 0 ||
-        cv::norm(m_dist_coeffs, new_dist_coeffs, cv::NORM_L1) != 0) {
+  {
+    std::lock_guard<std::mutex> lock(m_intrinsics_mutex);
+    if (m_intrinsics_loaded != new_intrinsics_loaded) {
       changed = true;
+    } else if (new_intrinsics_loaded) {
+      if (cv::norm(m_camera_matrix, new_camera_matrix, cv::NORM_L1) != 0 ||
+          cv::norm(m_dist_coeffs, new_dist_coeffs, cv::NORM_L1) != 0) {
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      m_camera_matrix = new_camera_matrix;
+      m_dist_coeffs = new_dist_coeffs;
+      m_intrinsics_loaded = new_intrinsics_loaded;
     }
   }
 
   if (changed) {
-    m_camera_matrix = new_camera_matrix.clone();
-    m_dist_coeffs = new_dist_coeffs.clone();
-    m_intrinsics_loaded = new_intrinsics_loaded;
-
-    if (m_intrinsics_loaded) {
+    if (new_intrinsics_loaded) {
       std::cout << "[" << m_role << "] Camera Matrix updated: "
-                << cv::format(m_camera_matrix, cv::Formatter::FMT_DEFAULT)
+                << cv::format(new_camera_matrix, cv::Formatter::FMT_DEFAULT)
                 << std::endl;
       std::cout << "[" << m_role << "] Distortion Coefficients updated: "
-                << cv::format(m_dist_coeffs, cv::Formatter::FMT_DEFAULT)
+                << cv::format(new_dist_coeffs, cv::Formatter::FMT_DEFAULT)
                 << std::endl;
     } else {
       std::cerr << "[" << m_role
@@ -222,6 +227,7 @@ void Pipeline::stop() {
   if (!m_is_running) return;
   m_is_running = false;
 
+  m_captured_frames.shutdown();
   m_estimated_poses.shutdown();
 
   if (m_capture_thread.joinable()) m_capture_thread.join();
@@ -253,7 +259,13 @@ void Pipeline::capture_loop() {
 
     if (frame_was_captured) {
       if (m_config_interface->isSetupMode() && m_cv_source) {
-        m_cv_source->PutFrame(frame.frame);
+        cv::Mat bgr_frame;
+        if (frame.frame.channels() == 2) {
+          cv::cvtColor(frame.frame, bgr_frame, cv::COLOR_YUV2BGR_YUYV);
+        } else {
+          bgr_frame = frame.frame;
+        }
+        m_cv_source->PutFrame(bgr_frame);
       }
     }
 
@@ -277,20 +289,26 @@ void Pipeline::processing_loop() {
   auto start_time = std::chrono::high_resolution_clock::now();
 
   while (m_is_running) {
-    if (QueuedFrame frame; m_captured_frames.waitAndPopWithTimeout(
-            frame, std::chrono::milliseconds(1))) {
+    QueuedFrame frame;
+    if (m_captured_frames.waitAndPop(frame)) {
       FiducialImageObservation frame_observation;
       m_AprilTagDetector.detect(frame, frame_observation);
       frame_observation.timestamp = frame.timestamp;
 
-      if (!frame_observation.tag_ids.empty() && m_intrinsics_loaded) {
+      cv::Mat cameraMatrix, distCoeffs;
+      bool intrinsics_loaded = false;
+      {
+        std::lock_guard<std::mutex> lock(m_intrinsics_mutex);
+        cameraMatrix = m_camera_matrix;
+        distCoeffs = m_dist_coeffs;
+        intrinsics_loaded = m_intrinsics_loaded;
+      }
+
+      if (!frame_observation.tag_ids.empty() && intrinsics_loaded) {
         AprilTagResult result;
         result.timestamp = frame_observation.timestamp;
         result.camera_role = m_role;
         constexpr double tag_size_m = 0.1651;
-
-        cv::Mat cameraMatrix = m_camera_matrix.clone();
-        cv::Mat distCoeffs = m_dist_coeffs.clone();
 
         CameraPoseEstimator::estimatePose(frame_observation, result,
                                           cameraMatrix, distCoeffs, tag_size_m,
@@ -321,18 +339,30 @@ void Pipeline::processing_loop() {
 }
 
 void Pipeline::networktables_loop() {
-  while (m_is_running) {
-    // Always publish the latest known connection status.
-    if (m_output_publisher) {
-      m_output_publisher->SendConnectionStatus(m_camera->isConnected());
+  auto last_conn_publish = std::chrono::steady_clock::now();
+  bool last_status = false;
+  bool first_publish = true;
 
-      AprilTagResult result;
-      if (!m_estimated_poses.waitAndPopWithTimeout(
-              result, std::chrono::milliseconds(1))) {
-        continue;
+  while (m_is_running) {
+    // Wait up to 50ms for a result. This avoids busy-waiting when no targets are visible.
+    AprilTagResult result;
+    bool has_result = m_estimated_poses.waitAndPopWithTimeout(result, std::chrono::milliseconds(50));
+
+    if (m_output_publisher) {
+      auto now = std::chrono::steady_clock::now();
+      bool current_status = m_camera->isConnected();
+
+      // Only publish connection status on startup, state change, or every 500ms
+      if (first_publish || current_status != last_status || (now - last_conn_publish) >= std::chrono::milliseconds(500)) {
+        m_output_publisher->SendConnectionStatus(current_status);
+        last_status = current_status;
+        last_conn_publish = now;
+        first_publish = false;
       }
 
-      m_output_publisher->SendAprilTagResult(result);
+      if (has_result) {
+        m_output_publisher->SendAprilTagResult(result);
+      }
     }
   }
 }

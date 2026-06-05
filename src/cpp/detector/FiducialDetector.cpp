@@ -59,6 +59,8 @@ void FiducialDetector::detect(const QueuedFrame& frame,
   cv::Mat gray_frame;
   if (frame.frame.channels() == 3) {
     cv::cvtColor(frame.frame, gray_frame, cv::COLOR_BGR2GRAY);
+  } else if (frame.frame.channels() == 2) {
+    cv::cvtColor(frame.frame, gray_frame, cv::COLOR_YUV2GRAY_YUYV);
   } else {
     gray_frame = frame.frame;
   }

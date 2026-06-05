@@ -48,7 +48,24 @@ void NTOutputPublisher::SendConnectionStatus(const bool isConnected) {
 void NTOutputPublisher::SendAprilTagResult(const AprilTagResult& result) {
   // --- Main observation data ---
   // This contains the multi-tag pose estimate and corner angles.
-  std::vector<double> observation_data = {0.0};
+  
+  // Precompute vector capacity to avoid reallocations
+  size_t capacity = 1; // pose_count flag
+  if (!PoseUtils::isPoseZero(result.multi_tag_pose.pose_0)) {
+    const auto& obs = result.multi_tag_pose;
+    capacity += 1 + 7; // error_0 + pose_0 (x,y,z,qw,qx,qy,qz)
+    if (obs.pose_1.has_value() && obs.error_1.has_value()) {
+      capacity += 1 + 7; // error_1 + pose_1 (x,y,z,qw,qx,qy,qz)
+    }
+  }
+  for (const auto& tag : result.tag_angles) {
+    capacity += 1 + tag.corners_angles.size() + 1; // tag_id + corners_angles + distance
+  }
+
+  std::vector<double> observation_data;
+  observation_data.reserve(capacity);
+  observation_data.push_back(0.0);
+
   if (!PoseUtils::isPoseZero(result.multi_tag_pose.pose_0)) {
     const auto& obs = result.multi_tag_pose;
     // Data format: [pose_count, error_0, x, y, z, qw, qx, qy, qz, (error_1,
