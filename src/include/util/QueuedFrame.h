@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <opencv2/core/mat.hpp>
 #include <string>
 

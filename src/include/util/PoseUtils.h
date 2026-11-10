@@ -5,6 +5,7 @@
 #include <frc/geometry/Translation3d.h>
 #include <units/angle.h>
 
+#include <cassert>
 #include <opencv2/opencv.hpp>
 
 namespace PoseUtils {
