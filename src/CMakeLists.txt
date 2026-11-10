@@ -20,9 +20,6 @@ set(WORKER_SOURCES
 add_executable(GompeiVision ${MANAGER_SOURCES})
 add_executable(GompeiVisionProcess ${WORKER_SOURCES})
 
-set_property(TARGET GompeiVision GompeiVisionProcess PROPERTY CXX_STANDARD 17)
-set_property(TARGET GompeiVision GompeiVisionProcess PROPERTY CXX_STANDARD_REQUIRED ON)
-
 set_target_properties(GompeiVision GompeiVisionProcess PROPERTIES
         INSTALL_RPATH "$ORIGIN/../lib"
 )
