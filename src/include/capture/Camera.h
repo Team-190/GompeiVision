@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <opencv2/videoio.hpp>  // OpenCV's header for video I/O operations
 #include <string>

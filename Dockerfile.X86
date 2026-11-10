@@ -7,9 +7,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install all system dependencies required for the base OS and for building our dependencies
 RUN apt-get update && apt-get upgrade -y
 
+RUN apt-get install -y software-properties-common ca-certificates && \
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test
+
 RUN apt-get update && apt-get install -y \
     build-essential \
-    cmake \
+    gcc-16 \
+    g++-16 \
     git \
     wget \
     unzip \
@@ -51,7 +55,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install any pip packages needed
-RUN pip install --no-cache-dir --break-system-packages requests protobuf grpcio-tools
+RUN python3 -m pip install --no-cache-dir --break-system-packages \
+    cmake==3.31.10 requests protobuf grpcio-tools
+
+ENV CC=gcc-16 CXX=g++-16
 
 # Set a temporary working directory for building our dependencies
 WORKDIR /opt
@@ -96,20 +103,23 @@ RUN mkdir /opt/apriltag/build
 WORKDIR /opt/apriltag/build
 
 # Configure, compile, and install AprilTag
-RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
+RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local -D CMAKE_C_STANDARD=99 ..
 RUN make -j$(nproc)
 RUN make install
 
 # --- Build and Install WPILib ---
 WORKDIR /opt
 ARG WPILIB_VERSION="v2025.3.2"
-RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git
+RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git && \
+    sed -i '/^#pragma once$/a #include <cstdint>' \
+        /opt/allwpilib/wpigui/src/main/native/include/portable-file-dialogs.h
 
 RUN mkdir /opt/allwpilib/build
 WORKDIR /opt/allwpilib/build
 
 RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
+          -D CMAKE_CXX_FLAGS=-Wno-error=array-bounds \
           -DWITH_OPENCV=ON \
           -DWITH_JAVA=OFF \
           -DWITH_SIMULATION_MODULES=OFF \

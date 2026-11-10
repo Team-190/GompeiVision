@@ -3,6 +3,7 @@
 #include <frc/geometry/Pose3d.h>
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
