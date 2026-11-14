@@ -244,11 +244,11 @@ jobs:
           
           # Sign the Release file
           (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --clearsign --digest-algo SHA256 -o InRelease Release)
-          (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --digest-algo SHA256 -abs -o Release.gpg Release)
+          (cd $REPO_DIR/dists/$DISTRO && gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --detach-sign --digest-algo SHA256 -o Release.gpg Release)
           
           # Export public key
           GPG_KEY_ID=$(gpg --list-keys --with-colons | grep '^pub' | cut -d: -f5)
-          gpg --armor --export $GPG_KEY_ID > $REPO_DIR/public.key
+          gpg --armor --export "$GPG_KEY_ID" > $REPO_DIR/public.key
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
