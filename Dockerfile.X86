@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     libx264-dev \
     libgtk-3-dev \
     libopenblas-dev \
+    liblapack-dev \
     gfortran \
     # WPILib Dependencies
     libudev-dev \
@@ -56,7 +57,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install any pip packages needed
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
-    cmake==3.31.10 requests protobuf grpcio-tools
+    cmake==4.4.5 requests==2.34.2 protobuf==7.36.2 grpcio-tools==1.85.3
 
 ENV CC=gcc-16 CXX=g++-16
 
@@ -64,7 +65,7 @@ ENV CC=gcc-16 CXX=g++-16
 WORKDIR /opt
 
 # --- Build and Install OpenCV ---
-ARG OPENCV_VERSION="4.11.0"
+ARG OPENCV_VERSION="5.1.0"
 RUN git clone --depth 1 --branch ${OPENCV_VERSION} https://github.com/opencv/opencv.git && \
     git clone --depth 1 --branch ${OPENCV_VERSION} https://github.com/opencv/opencv_contrib.git
 
@@ -75,8 +76,8 @@ WORKDIR /opt/opencv/build
 RUN cmake -D CMAKE_BUILD_TYPE=RELEASE \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-          -D BUILD_OPENCV_FEATURES2d=ON \
-          -D BUILD_OPENCV_FLANN=ON \
+          -D BUILD_opencv_features=ON \
+          -D BUILD_opencv_flann=ON \
           -D BUILD_EXAMPLES=OFF \
           -D BUILD_TESTS=OFF \
           -D BUILD_DOCS=OFF \
@@ -96,7 +97,7 @@ RUN make install
 
 # --- Build and Install AprilTag ---
 WORKDIR /opt
-ARG APRILTAG_VERSION="v3.3.0"
+ARG APRILTAG_VERSION="v3.4.5"
 RUN git clone --depth 1 --branch ${APRILTAG_VERSION} https://github.com/AprilRobotics/apriltag.git
 
 RUN mkdir /opt/apriltag/build
@@ -139,27 +140,29 @@ RUN python3 generate_nanopb.py --output_directory="/usr/local/include/wpimath/pr
 
 # --- Build and Install OpenPnP-Capture ---
 WORKDIR /opt
-RUN git clone https://github.com/openpnp/openpnp-capture.git
+ARG OPENPNP_CAPTURE_VERSION="v0.0.30"
+RUN git clone --depth 1 --branch ${OPENPNP_CAPTURE_VERSION} https://github.com/openpnp/openpnp-capture.git
 
 RUN mkdir /opt/openpnp-capture/build
 WORKDIR /opt/openpnp-capture/build
 
 # Configure, compile, and install
-RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
+# OpenPnP still declares CMake 3.1; CMake 4 requires a policy floor of 3.5.
+RUN cmake -D CMAKE_POLICY_VERSION_MINIMUM=3.5 -D CMAKE_INSTALL_PREFIX=/usr/local ..
 RUN make -j$(nproc)
 RUN make install
 
 # --- Install Nlohmann-json ---
 WORKDIR /usr/local/include/nlohmann
-RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+ARG NLOHMANN_JSON_VERSION="v3.12.0"
+RUN curl -fL -o json.hpp https://github.com/nlohmann/json/releases/download/${NLOHMANN_JSON_VERSION}/json.hpp
 
 # --- Compile and build cpp-httplib
 WORKDIR /opt
 
-ARG CPP_HTTPLIB_COMMIT="ecfd84c1712b1bfe92107e37843f97ecec537da9"
-RUN git clone https://github.com/yhirose/cpp-httplib.git && \
+ARG CPP_HTTPLIB_VERSION="v0.67.0"
+RUN git clone --depth 1 --branch ${CPP_HTTPLIB_VERSION} https://github.com/yhirose/cpp-httplib.git && \
     cd cpp-httplib && \
-    git checkout ${CPP_HTTPLIB_COMMIT} && \
     mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=/usr/local \
