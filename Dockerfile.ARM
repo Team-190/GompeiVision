@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
     libxvidcore-dev \
     libx264-dev \
     libgtk-3-dev \
-    libatlas-base-dev \
+    libopenblas-dev \
     gfortran \
     # WPILib Dependencies
     libudev-dev \
