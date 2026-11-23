@@ -1,5 +1,5 @@
 # Use an official Ubuntu base image for ARM64 for reproducible builds
-FROM arm64v8/ubuntu:24.04
+FROM arm64v8/ubuntu:26.04
 
 # Set DEBIAN_FRONTEND to noninteractive to prevent prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -106,7 +106,7 @@ RUN make install
 
 # --- Build and Install WPILib ---
 WORKDIR /opt
-ARG WPILIB_VERSION="v2025.3.2"
+ARG WPILIB_VERSION="v2027.0.0-alpha-8"
 RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git && \
     sed -i '/^#pragma once$/a #include <cstdint>' \
         /opt/allwpilib/wpigui/src/main/native/include/portable-file-dialogs.h

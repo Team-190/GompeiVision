@@ -20,7 +20,7 @@ jobs:
   # --- Job 1: Build for AMD64 / X86 ---
   build-amd64:
     name: Build and Package (amd64)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -91,7 +91,7 @@ jobs:
   # --- Job 2: Build for ARM64 ---
   build-arm64:
     name: Build and Package (arm64)
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
 
   publish-to-gh-pages:
     name: Publish to GitHub Pages APT Repo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [build-amd64, build-arm64]
     if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
@@ -262,7 +262,7 @@ jobs:
 
   upload-release-assets:
     name: Upload Artifacts to GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [build-amd64, build-arm64]
     if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
