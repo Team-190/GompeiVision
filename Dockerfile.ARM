@@ -108,9 +108,7 @@ RUN make install
 # --- Build and Install WPILib ---
 WORKDIR /opt
 ARG WPILIB_VERSION="v2027.0.0-alpha-8"
-RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git && \
-    sed -i '/^#pragma once$/a #include <cstdint>' \
-        /opt/allwpilib/wpigui/src/main/native/include/portable-file-dialogs.h
+RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git
 
 RUN mkdir /opt/allwpilib/build
 WORKDIR /opt/allwpilib/build
