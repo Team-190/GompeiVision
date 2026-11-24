@@ -1,6 +1,7 @@
 #include "pipeline/Pipeline.h"
 
-#include <cscore/cscore_cv.h>
+#include <wpi/cs/CvSource.hpp>
+#include <wpi/cs/MjpegServer.hpp>
 #include <httplib.h>
 
 #include <chrono>
@@ -23,7 +24,7 @@
 
 Pipeline::Pipeline(const std::string& device_path,
                    const std::string& hardware_id, const int stream_port,
-                   nt::NetworkTableInstance& nt_inst)
+                   wpi::nt::NetworkTableInstance& nt_inst)
     : m_hardware_id(hardware_id), m_stream_port(stream_port) {
   m_config_interface = std::make_unique<ConfigInterface>(hardware_id, nt_inst);
 
@@ -195,14 +196,12 @@ void Pipeline::during() {
                 << "] Setup mode enabled. Initializing servers." << std::endl;
 
       m_mjpeg_server =
-          std::make_unique<cs::MjpegServer>(m_role + "_stream", m_stream_port);
-      m_cv_source = std::make_unique<cs::CvSource>(
-          m_role + "_source", cs::VideoMode::PixelFormat::kBGR, m_active_width,
+          std::make_unique<wpi::cs::MjpegServer>(m_role + "_stream", m_stream_port);
+      m_cv_source = std::make_unique<wpi::cs::CvSource>(
+          m_role + "_source", wpi::util::PixelFormat::BGR, m_active_width,
           m_active_height, 60);
 
-      CS_Status status = 0;
-      cs::SetSinkSource(m_mjpeg_server->GetHandle(),
-                        m_cv_source.get()->GetHandle(), &status);
+      m_mjpeg_server->SetSource(*m_cv_source);
 
       std::cout << "[" << m_role << "] MJPEG stream available at port "
                 << m_stream_port << std::endl;

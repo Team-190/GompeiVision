@@ -1,6 +1,6 @@
 // src/cpp/main.cpp
 
-#include <networktables/NetworkTableInstance.h>
+#include <wpi/nt/NetworkTableInstance.hpp>
 
 #include <atomic>
 #include <condition_variable>

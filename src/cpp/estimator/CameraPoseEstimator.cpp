@@ -1,6 +1,6 @@
 #include "estimator/CameraPoseEstimator.h"
 
-#include <frc/geometry/Transform3d.h>
+#include <wpi/math/geometry/Transform3d.hpp>
 
 #include <opencv2/calib3d.hpp>
 #include <ranges>
@@ -11,17 +11,17 @@
 void CameraPoseEstimator::estimatePose(
     const FiducialImageObservation& observation, AprilTagResult& result,
     const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs, double tag_size_m,
-    const std::map<int, frc::Pose3d>& field_layout) {
+    const std::map<int, wpi::math::Pose3d>& field_layout) {
   if (field_layout.empty()) {
     return;
   }
   std::vector<int> tags_used_ids;
   std::vector<cv::Point2f> all_image_points;
   std::vector<cv::Point3f> all_object_points;
-  std::vector<frc::Pose3d> tagPoses;
+  std::vector<wpi::math::Pose3d> tagPoses;
 
   for (int i = 0; i < observation.tag_ids.size(); i++) {
-    auto tagPose = frc::Pose3d();
+    auto tagPose = wpi::math::Pose3d();
     for (const auto& key : field_layout | std::views::keys) {
       if (key == observation.tag_ids[i]) tagPose = field_layout.at(key);
     }
@@ -31,16 +31,17 @@ void CameraPoseEstimator::estimatePose(
       // top-right, bottom-right, bottom-left. This must match the order of the
       // corners from the fiducial detector. The WPILib coordinate system for
       // tags is X forward, Y left, Z up.
-      auto half_size = units::meter_t(tag_size_m / 2.0);
-      std::vector<frc::Translation3d> corners;
-      corners.emplace_back(0_m, -half_size, half_size);   // Top-left
-      corners.emplace_back(0_m, half_size, half_size);    // Top-right
-      corners.emplace_back(0_m, half_size, -half_size);   // Bottom-right
-      corners.emplace_back(0_m, -half_size, -half_size);  // Bottom-left
+      auto half_size = wpi::units::meter_t(tag_size_m / 2.0);
+      const wpi::units::meter_t zero{0};
+      std::vector<wpi::math::Translation3d> corners;
+      corners.emplace_back(zero, -half_size, half_size);   // Top-left
+      corners.emplace_back(zero, half_size, half_size);    // Top-right
+      corners.emplace_back(zero, half_size, -half_size);   // Bottom-right
+      corners.emplace_back(zero, -half_size, -half_size);  // Bottom-left
 
       for (const auto& corner : corners) {
         auto corner_pose =
-            tagPose + frc::Transform3d{corner, frc::Rotation3d{}};
+            tagPose + wpi::math::Transform3d{corner, wpi::math::Rotation3d{}};
         all_object_points.push_back(
             PoseUtils::wpilibTranslationToOpenCV(corner_pose.Translation()));
       }
@@ -82,7 +83,7 @@ void CameraPoseEstimator::estimatePose(
       pose.error_0 = errors[0];
       pose.error_1 = errors[1];
 
-      frc::Pose3d field_to_tag_pose =
+      wpi::math::Pose3d field_to_tag_pose =
           field_layout.find(observation.tag_ids[0])->second;
 
       auto camera_to_tag_pose_0 =
@@ -90,9 +91,9 @@ void CameraPoseEstimator::estimatePose(
       auto camera_to_tag_pose_1 =
           PoseUtils::openCvPoseToWpilib(rvecs[1], tvecs[1]);
 
-      auto camera_to_tag_0 = frc::Transform3d(
+      auto camera_to_tag_0 = wpi::math::Transform3d(
           camera_to_tag_pose_0.Translation(), camera_to_tag_pose_0.Rotation());
-      auto camera_to_tag_1 = frc::Transform3d(
+      auto camera_to_tag_1 = wpi::math::Transform3d(
           camera_to_tag_pose_1.Translation(), camera_to_tag_pose_1.Rotation());
 
       auto field_to_camera_0 =
@@ -100,9 +101,9 @@ void CameraPoseEstimator::estimatePose(
       auto field_to_camera_1 =
           field_to_tag_pose.TransformBy(camera_to_tag_1.Inverse());
 
-      auto field_to_camera_pose_0 = frc::Pose3d(field_to_camera_0.Translation(),
+      auto field_to_camera_pose_0 = wpi::math::Pose3d(field_to_camera_0.Translation(),
                                                 field_to_camera_0.Rotation());
-      auto field_to_camera_pose_1 = frc::Pose3d(field_to_camera_1.Translation(),
+      auto field_to_camera_pose_1 = wpi::math::Pose3d(field_to_camera_1.Translation(),
                                                 field_to_camera_1.Rotation());
 
       pose.pose_0 = field_to_camera_pose_0;
@@ -121,15 +122,15 @@ void CameraPoseEstimator::estimatePose(
                         errors);
  // The result of solvePnP is the pose of the field origin in the
     // camera's frame.
-    frc::Pose3d camera_to_field_pose =
+    wpi::math::Pose3d camera_to_field_pose =
         PoseUtils::openCvPoseToWpilib(multi_rvec[0], multi_tvec[0]);
 
     // We need the inverse: the pose of the camera in the field's frame.
-    auto camera_to_field = frc::Transform3d(camera_to_field_pose.Translation(),
+    auto camera_to_field = wpi::math::Transform3d(camera_to_field_pose.Translation(),
                                             camera_to_field_pose.Rotation());
     auto field_to_camera = camera_to_field.Inverse();
     auto field_to_camera_pose =
-        frc::Pose3d(field_to_camera.Translation(), field_to_camera.Rotation());
+        wpi::math::Pose3d(field_to_camera.Translation(), field_to_camera.Rotation());
 
     CameraPoseObservation cam_pose;
     cam_pose.pose_0 = field_to_camera_pose;

@@ -1,11 +1,11 @@
 #include "pipeline/PipelineHelper.h"
 
-#include <frc/geometry/Pose3d.h>
-#include <frc/geometry/Quaternion.h>
-#include <frc/geometry/Rotation3d.h>
-#include <frc/geometry/Translation3d.h>
-#include <networktables/NetworkTableType.h>
-#include <units/length.h>
+#include <wpi/math/geometry/Pose3d.hpp>
+#include <wpi/math/geometry/Quaternion.hpp>
+#include <wpi/math/geometry/Rotation3d.hpp>
+#include <wpi/math/geometry/Translation3d.hpp>
+#include <wpi/nt/NetworkTableType.hpp>
+#include <wpi/units/length.hpp>
 
 #include <filesystem>
 #include <fstream>

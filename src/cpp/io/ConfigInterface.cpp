@@ -21,7 +21,7 @@ constexpr auto kCompressed = "compressed";
 }  // namespace nt_keys
 
 ConfigInterface::ConfigInterface(const std::string& hardwareID,
-                                 const nt::NetworkTableInstance& nt_inst) {
+                                 const wpi::nt::NetworkTableInstance& nt_inst) {
   m_table =
       nt_inst.GetTable("/cameras/" + hardwareID);
   m_configTable = nt_inst.GetTable(
@@ -33,7 +33,7 @@ ConfigInterface::ConfigInterface(const std::string& hardwareID,
     // Subscribe to each topic with a default value. This ensures
     // that if the topic doesn't exist on the server yet, we have
     // a sensible default.
-    nt::PubSubOptions options;
+    wpi::nt::PubSubOptions options;
     options.periodic = 0.01;
     options.keepDuplicates = true;
 

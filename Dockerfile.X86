@@ -119,22 +119,21 @@ WORKDIR /opt/allwpilib/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D CMAKE_CXX_FLAGS=-Wno-error=array-bounds \
-          -DWITH_OPENCV=ON \
-          -DWITH_JAVA=OFF \
-          -DWITH_SIMULATION_MODULES=OFF \
-          -DWITH_WPILIB=OFF \
-          -DWITH_TESTS=OFF \
-          -DWITH_EXAMPLES=OFF \
-          -DWITH_CS_TOOLS=OFF \
-          -DWITH_GUI=ON \
+          -DWPILIB_WITH_CSCORE=ON \
+          -DWPILIB_WITH_NTCORE=ON \
+          -DWPILIB_WITH_WPIMATH=ON \
+          -DWPILIB_WITH_FIELDS=ON \
+          -DWPILIB_WITH_SIMULATION_MODULES=OFF \
+          -DWPILIB_WITH_WPILIB=OFF \
+          -DWPILIB_WITH_TESTS=OFF \
+          -DWPILIB_WITH_EXAMPLES=OFF \
+          -DWPILIB_WITH_BENCHMARK=OFF \
+          -DWPILIB_WITH_EXECUTABLES=OFF \
+          -DWPILIB_WITH_GUI=OFF \
           ..
 # Compile and install
 RUN make -j$(nproc)
 RUN make install
-
-# Generate the protobuf files
-WORKDIR /opt/allwpilib/wpimath
-RUN python3 generate_nanopb.py --output_directory="/usr/local/include/wpimath/protobuf"
 
 # --- Build and Install OpenPnP-Capture ---
 WORKDIR /opt

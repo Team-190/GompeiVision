@@ -8,10 +8,9 @@ find_package(apriltag REQUIRED)
 find_package(wpiutil REQUIRED)
 find_package(wpinet REQUIRED)
 find_package(cscore REQUIRED)
-find_package(cameraserver REQUIRED)
 find_package(ntcore REQUIRED)
 find_package(wpimath REQUIRED)
-find_package(fieldimages REQUIRED)
+find_package(fields REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(udev REQUIRED libudev)
@@ -23,7 +22,7 @@ target_include_directories(udev::udev INTERFACE ${udev_INCLUDE_DIRS})
 target_link_libraries(udev::udev INTERFACE ${udev_LIBRARIES})
 
 add_library(zstd::libzstd INTERFACE IMPORTED)
-target_include_directories(zstd::libzstd INTERFACE ${ZSTD_INCLUDE_DIRS})
+target_include_directories(zstd::libzstd INTERFACE ${zstd_INCLUDE_DIRS})
 target_link_libraries(zstd::libzstd INTERFACE zstd)
 
 add_library(OpenPnP::Capture SHARED IMPORTED GLOBAL)
@@ -41,13 +40,11 @@ target_include_directories(third_party_libs INTERFACE
         ${wpiutil_INCLUDE_DIRS}
         ${wpinet_INCLUDE_DIRS}
         ${cscore_INCLUDE_DIRS}
-        ${cameraserver_INCLUDE_DIRS}
         ${ntcore_INCLUDE_DIRS}
         ${wpimath_INCLUDE_DIRS}
         ${httplib_INCLUDE_DIRS}
         ${udev_INCLUDE_DIRS}
         /usr/local/include
-        /usr/local/include/fieldImages
         ${openpnpcapture_INCLUDE_DIRS}
 )
 
@@ -57,10 +54,9 @@ target_link_libraries(third_party_libs INTERFACE
         wpiutil
         wpinet
         cscore
-        cameraserver
         ntcore
         wpimath
-        fieldImages
+        fields
         httplib::httplib
         udev::udev
         zstd::libzstd
