@@ -19,17 +19,5 @@ install(DIRECTORY /usr/local/lib/
         PATTERN "python*" EXCLUDE
 )
 
-file(GLOB SYSTEM_LIBS
-        LIST_DIRECTORIES false
-        "/usr/lib/x86_64-linux-gnu/libprotobuf.so*"
-        "/usr/lib/x86_64-linux-gnu/libavcodec.so.58"
-        "/usr/lib/x86_64-linux-gnu/libavformat.so.58"
-        "/usr/lib/x86_64-linux-gnu/libswscale.so.5"
-)
-
-install(FILES ${SYSTEM_LIBS}
-        DESTINATION lib
-)
-
 # Set up packaging with CPack
 include(packaging/CPackConfig.cmake)

@@ -40,10 +40,9 @@ target_link_libraries(GompeiVisionProcess PRIVATE
 
 install(TARGETS GompeiVision GompeiVisionProcess DESTINATION bin)
 
-add_custom_command(
-        TARGET GompeiVision
-        POST_BUILD
+add_custom_target(gompeivision-deb
         COMMAND ${CMAKE_CPACK_COMMAND}
+        DEPENDS GompeiVision GompeiVisionProcess
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         COMMENT "Packaging project into a .deb file..."
         VERBATIM

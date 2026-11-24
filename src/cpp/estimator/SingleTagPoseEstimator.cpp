@@ -1,6 +1,6 @@
 #include "estimator/SingleTagPoseEstimator.h"
 
-#include <frc/geometry/Pose3d.h>
+#include <wpi/math/geometry/Pose3d.hpp>
 #include <util/PoseUtils.h>
 
 #include <opencv2/calib3d.hpp>
@@ -45,7 +45,7 @@ void SingleTagPoseEstimator::estimatePose(
       pose.error_1 = errors[1];
       pose.pose_1 = PoseUtils::openCvPoseToWpilib(tvecs[1], rvecs[1]);
 
-      units::meter_t distance;
+      wpi::units::meter_t distance;
 
       if (pose.error_1.has_value() && pose.pose_1.has_value() &&
           pose.error_1 < pose.error_0) {

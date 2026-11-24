@@ -1,11 +1,11 @@
 #pragma once
 
-#include <networktables/BooleanTopic.h>
-#include <networktables/DoubleArrayTopic.h>
-#include <networktables/IntegerTopic.h>
-#include <networktables/NetworkTable.h>
-#include <networktables/NetworkTableInstance.h>
-#include <networktables/StringTopic.h>
+#include <wpi/nt/BooleanTopic.hpp>
+#include <wpi/nt/DoubleArrayTopic.hpp>
+#include <wpi/nt/IntegerTopic.hpp>
+#include <wpi/nt/NetworkTable.hpp>
+#include <wpi/nt/NetworkTableInstance.hpp>
+#include <wpi/nt/StringTopic.hpp>
 
 #include <condition_variable>
 #include <memory>
@@ -37,7 +37,7 @@ class ConfigInterface {
    * topics and performs an initial load of all configuration values.
    */
   explicit ConfigInterface(const std::string&,
-                           const nt::NetworkTableInstance& nt_inst);
+                           const wpi::nt::NetworkTableInstance& nt_inst);
   ~ConfigInterface();
 
   /**
@@ -90,20 +90,20 @@ class ConfigInterface {
   void initializationThreadFunc();
 
   // --- NetworkTables Handles ---
-  std::shared_ptr<nt::NetworkTable> m_table;
-  std::shared_ptr<nt::NetworkTable> m_configTable;
-  std::shared_ptr<nt::NetworkTable> m_outputTable;
+  std::shared_ptr<wpi::nt::NetworkTable> m_table;
+  std::shared_ptr<wpi::nt::NetworkTable> m_configTable;
+  std::shared_ptr<wpi::nt::NetworkTable> m_outputTable;
 
   // Subscribers for each configuration parameter
-  nt::BooleanSubscriber m_setupModeSub;
-  nt::StringSubscriber m_roleSub;
-  nt::DoubleArraySubscriber m_cameraMatrixSub;
-  nt::DoubleArraySubscriber m_distCoeffsSub;
-  nt::IntegerSubscriber m_exposureSub;
-  nt::IntegerSubscriber m_gainSub;
-  nt::IntegerSubscriber m_widthSub;
-  nt::IntegerSubscriber m_heightSub;
-  nt::BooleanSubscriber m_compressedSub;
+  wpi::nt::BooleanSubscriber m_setupModeSub;
+  wpi::nt::StringSubscriber m_roleSub;
+  wpi::nt::DoubleArraySubscriber m_cameraMatrixSub;
+  wpi::nt::DoubleArraySubscriber m_distCoeffsSub;
+  wpi::nt::IntegerSubscriber m_exposureSub;
+  wpi::nt::IntegerSubscriber m_gainSub;
+  wpi::nt::IntegerSubscriber m_widthSub;
+  wpi::nt::IntegerSubscriber m_heightSub;
+  wpi::nt::BooleanSubscriber m_compressedSub;
 
   // --- In-Memory Configuration Cache ---
   // These members hold the last valid values received from NetworkTables.

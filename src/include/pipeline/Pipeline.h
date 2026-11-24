@@ -12,7 +12,8 @@
 
 #include "../io/OutputPublisher.h"
 #include "capture/Camera.h"
-#include "cscore_cv.h"
+#include <wpi/cs/CvSource.hpp>
+#include <wpi/cs/MjpegServer.hpp>
 #include "detector/FiducialDetector.h"
 #include "io/ConfigInterface.h"
 #include "io/FieldInterface.h"
@@ -28,7 +29,7 @@ struct UdevContextDeleter {
 class Pipeline {
  public:
   Pipeline(const std::string& device_path, const std::string& hardware_id,
-           const int stream_port, nt::NetworkTableInstance& nt_inst);
+           const int stream_port, wpi::nt::NetworkTableInstance& nt_inst);
   ~Pipeline();
 
   void start();
@@ -60,8 +61,8 @@ class Pipeline {
 
   std::unique_ptr<Camera> m_camera;
 
-  std::unique_ptr<cs::MjpegServer> m_mjpeg_server;
-  std::unique_ptr<cs::CvSource> m_cv_source;
+  std::unique_ptr<wpi::cs::MjpegServer> m_mjpeg_server;
+  std::unique_ptr<wpi::cs::CvSource> m_cv_source;
 
   // --- Detectors ---
   FiducialDetector m_AprilTagDetector;

@@ -1,6 +1,6 @@
 #include "io/OutputPublisher.h"
 
-#include <networktables/NetworkTableInstance.h>
+#include <wpi/nt/NetworkTableInstance.hpp>
 
 #include <chrono>
 #include <vector>
@@ -14,7 +14,7 @@ namespace {
  * @param data The vector to append data to.
  * @param pose The pose to serialize.
  */
-void AppendPoseData(std::vector<double>& data, const frc::Pose3d& pose) {
+void AppendPoseData(std::vector<double>& data, const wpi::math::Pose3d& pose) {
   data.push_back(pose.Translation().X().value());
   data.push_back(pose.Translation().Y().value());
   data.push_back(pose.Translation().Z().value());
@@ -27,11 +27,11 @@ void AppendPoseData(std::vector<double>& data, const frc::Pose3d& pose) {
 }  // namespace
 
 NTOutputPublisher::NTOutputPublisher(const std::string_view hardware_id,
-                                     const nt::NetworkTableInstance& nt_inst) {
+                                     const wpi::nt::NetworkTableInstance& nt_inst) {
   const auto table =
       nt_inst.GetTable("/cameras/" + std::string(hardware_id) + "/output");
 
-  constexpr nt::PubSubOptions options{
+  constexpr wpi::nt::PubSubOptions options{
       .periodic = 0.01, .sendAll = true, .keepDuplicates = true};
 
   m_connection_status_pub = table->GetBooleanTopic("connected").Publish();

@@ -1,6 +1,6 @@
 #include "estimator/TagAngleCalculator.h"
 
-#include <frc/geometry/Pose3d.h>
+#include <wpi/math/geometry/Pose3d.hpp>
 
 #include <cmath>
 #include <opencv2/calib3d.hpp>

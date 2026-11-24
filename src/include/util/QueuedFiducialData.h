@@ -1,6 +1,6 @@
 #pragma once
 
-#include <frc/geometry/Pose3d.h>
+#include <wpi/math/geometry/Pose3d.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -25,10 +25,10 @@ struct FiducialImageObservation {
  */
 struct FiducialPoseObservation {
   int tag_id;
-  frc::Pose3d pose_0;
-  units::meter_t distance;
+  wpi::math::Pose3d pose_0;
+  wpi::units::meter_t distance;
   double error_0;
-  std::optional<frc::Pose3d> pose_1;  // Second ambiguous pose
+  std::optional<wpi::math::Pose3d> pose_1;  // Second ambiguous pose
   std::optional<double> error_1;
 };
 
@@ -39,9 +39,9 @@ struct FiducialPoseObservation {
  */
 struct CameraPoseObservation {
   std::vector<int> tag_ids;
-  frc::Pose3d pose_0;
+  wpi::math::Pose3d pose_0;
   double error_0;
-  std::optional<frc::Pose3d> pose_1;
+  std::optional<wpi::math::Pose3d> pose_1;
   std::optional<double> error_1;
 };
 

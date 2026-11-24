@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "frc/geometry/Pose3d.h"
+#include <wpi/math/geometry/Pose3d.hpp>
 #include "io/ConfigInterface.h"
 #include "nlohmann/json.hpp"
 
@@ -18,5 +18,5 @@ class PipelineHelper {
                                      cv::Mat& cameraMatrix,
                                      cv::Mat& distortionCoefficients);
 
-  static std::map<int, frc::Pose3d> load_field_layout();
+  static std::map<int, wpi::math::Pose3d> load_field_layout();
 };

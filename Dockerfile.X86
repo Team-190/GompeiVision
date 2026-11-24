@@ -1,5 +1,5 @@
 # Use an official Ubuntu base image for X86 reproducible builds
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Set DEBIAN_FRONTEND to noninteractive to prevent prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -34,7 +34,8 @@ RUN apt-get update && apt-get install -y \
     libxvidcore-dev \
     libx264-dev \
     libgtk-3-dev \
-    libatlas-base-dev \
+    libopenblas-dev \
+    liblapack-dev \
     gfortran \
     # WPILib Dependencies
     libudev-dev \
@@ -56,7 +57,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install any pip packages needed
 RUN python3 -m pip install --no-cache-dir --break-system-packages \
-    cmake==3.31.10 requests protobuf grpcio-tools
+    cmake==4.4.5 requests==2.34.2 protobuf==7.36.2 grpcio-tools==1.85.3
 
 ENV CC=gcc-16 CXX=g++-16
 
@@ -64,7 +65,7 @@ ENV CC=gcc-16 CXX=g++-16
 WORKDIR /opt
 
 # --- Build and Install OpenCV ---
-ARG OPENCV_VERSION="4.11.0"
+ARG OPENCV_VERSION="5.1.0"
 RUN git clone --depth 1 --branch ${OPENCV_VERSION} https://github.com/opencv/opencv.git && \
     git clone --depth 1 --branch ${OPENCV_VERSION} https://github.com/opencv/opencv_contrib.git
 
@@ -75,8 +76,8 @@ WORKDIR /opt/opencv/build
 RUN cmake -D CMAKE_BUILD_TYPE=RELEASE \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-          -D BUILD_OPENCV_FEATURES2d=ON \
-          -D BUILD_OPENCV_FLANN=ON \
+          -D BUILD_opencv_features=ON \
+          -D BUILD_opencv_flann=ON \
           -D BUILD_EXAMPLES=OFF \
           -D BUILD_TESTS=OFF \
           -D BUILD_DOCS=OFF \
@@ -96,7 +97,7 @@ RUN make install
 
 # --- Build and Install AprilTag ---
 WORKDIR /opt
-ARG APRILTAG_VERSION="v3.3.0"
+ARG APRILTAG_VERSION="v3.4.5"
 RUN git clone --depth 1 --branch ${APRILTAG_VERSION} https://github.com/AprilRobotics/apriltag.git
 
 RUN mkdir /opt/apriltag/build
@@ -109,10 +110,8 @@ RUN make install
 
 # --- Build and Install WPILib ---
 WORKDIR /opt
-ARG WPILIB_VERSION="v2025.3.2"
-RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git && \
-    sed -i '/^#pragma once$/a #include <cstdint>' \
-        /opt/allwpilib/wpigui/src/main/native/include/portable-file-dialogs.h
+ARG WPILIB_VERSION="v2027.0.0-alpha-8"
+RUN git clone --depth 1 --branch ${WPILIB_VERSION} https://github.com/wpilibsuite/allwpilib.git
 
 RUN mkdir /opt/allwpilib/build
 WORKDIR /opt/allwpilib/build
@@ -120,46 +119,47 @@ WORKDIR /opt/allwpilib/build
 RUN cmake -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_INSTALL_PREFIX=/usr/local \
           -D CMAKE_CXX_FLAGS=-Wno-error=array-bounds \
-          -DWITH_OPENCV=ON \
-          -DWITH_JAVA=OFF \
-          -DWITH_SIMULATION_MODULES=OFF \
-          -DWITH_WPILIB=OFF \
-          -DWITH_TESTS=OFF \
-          -DWITH_EXAMPLES=OFF \
-          -DWITH_CS_TOOLS=OFF \
-          -DWITH_GUI=ON \
+          -DWPILIB_WITH_CSCORE=ON \
+          -DWPILIB_WITH_NTCORE=ON \
+          -DWPILIB_WITH_WPIMATH=ON \
+          -DWPILIB_WITH_FIELDS=ON \
+          -DWPILIB_WITH_SIMULATION_MODULES=OFF \
+          -DWPILIB_WITH_WPILIB=OFF \
+          -DWPILIB_WITH_TESTS=OFF \
+          -DWPILIB_WITH_EXAMPLES=OFF \
+          -DWPILIB_WITH_BENCHMARK=OFF \
+          -DWPILIB_WITH_EXECUTABLES=OFF \
+          -DWPILIB_WITH_GUI=OFF \
           ..
 # Compile and install
 RUN make -j$(nproc)
 RUN make install
 
-# Generate the protobuf files
-WORKDIR /opt/allwpilib/wpimath
-RUN python3 generate_nanopb.py --output_directory="/usr/local/include/wpimath/protobuf"
-
 # --- Build and Install OpenPnP-Capture ---
 WORKDIR /opt
-RUN git clone https://github.com/openpnp/openpnp-capture.git
+ARG OPENPNP_CAPTURE_VERSION="v0.0.30"
+RUN git clone --depth 1 --branch ${OPENPNP_CAPTURE_VERSION} https://github.com/openpnp/openpnp-capture.git
 
 RUN mkdir /opt/openpnp-capture/build
 WORKDIR /opt/openpnp-capture/build
 
 # Configure, compile, and install
-RUN cmake -D CMAKE_INSTALL_PREFIX=/usr/local ..
+# OpenPnP still declares CMake 3.1; CMake 4 requires a policy floor of 3.5.
+RUN cmake -D CMAKE_POLICY_VERSION_MINIMUM=3.5 -D CMAKE_INSTALL_PREFIX=/usr/local ..
 RUN make -j$(nproc)
 RUN make install
 
 # --- Install Nlohmann-json ---
 WORKDIR /usr/local/include/nlohmann
-RUN curl -L -o json.hpp https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+ARG NLOHMANN_JSON_VERSION="v3.12.0"
+RUN curl -fL -o json.hpp https://github.com/nlohmann/json/releases/download/${NLOHMANN_JSON_VERSION}/json.hpp
 
 # --- Compile and build cpp-httplib
 WORKDIR /opt
 
-ARG CPP_HTTPLIB_COMMIT="ecfd84c1712b1bfe92107e37843f97ecec537da9"
-RUN git clone https://github.com/yhirose/cpp-httplib.git && \
+ARG CPP_HTTPLIB_VERSION="v0.67.0"
+RUN git clone --depth 1 --branch ${CPP_HTTPLIB_VERSION} https://github.com/yhirose/cpp-httplib.git && \
     cd cpp-httplib && \
-    git checkout ${CPP_HTTPLIB_COMMIT} && \
     mkdir build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=/usr/local \

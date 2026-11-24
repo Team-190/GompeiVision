@@ -1,8 +1,8 @@
 #pragma once
 
-#include <networktables/BooleanTopic.h>
-#include <networktables/DoubleArrayTopic.h>
-#include <networktables/IntegerTopic.h>
+#include <wpi/nt/BooleanTopic.hpp>
+#include <wpi/nt/DoubleArrayTopic.hpp>
+#include <wpi/nt/IntegerTopic.hpp>
 
 #include <string>
 #include <string_view>
@@ -39,15 +39,15 @@ class OutputPublisher {
  */
 class NTOutputPublisher final : public OutputPublisher {
  public:
-  explicit NTOutputPublisher(const std::string_view hardware_id, const nt::NetworkTableInstance& nt_inst);
+  explicit NTOutputPublisher(const std::string_view hardware_id, const wpi::nt::NetworkTableInstance& nt_inst);
   void SendConnectionStatus(bool isConnected) override;
   void SendAprilTagResult(const AprilTagResult& result) override;
   void SendCaptureFPS(const uint8_t& fps) override;
   void SendProcessingFPS(const uint8_t& fps) override;
 
  private:
-  nt::BooleanPublisher m_connection_status_pub;
-  nt::DoubleArrayPublisher m_observations_pub;
-  nt::IntegerPublisher m_capture_fps_pub;
-  nt::IntegerPublisher m_processing_fps_pub;
+  wpi::nt::BooleanPublisher m_connection_status_pub;
+  wpi::nt::DoubleArrayPublisher m_observations_pub;
+  wpi::nt::IntegerPublisher m_capture_fps_pub;
+  wpi::nt::IntegerPublisher m_processing_fps_pub;
 };

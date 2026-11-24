@@ -1,6 +1,6 @@
 #include "capture/Camera.h"
 
-#include <ntcore_cpp.h>
+#include <wpi/nt/ntcore_cpp.hpp>
 
 #include <iostream>
 #include <thread>
@@ -34,7 +34,7 @@ bool Camera::getFrame(
 
   // Atomically grab and retrieve the frame.
   if (m_capture.read(frame)) {
-    timestamp = nt::Now();
+    timestamp = wpi::nt::Now();
     m_is_connected = true;
     return true;  // Frame captured successfully.
   }
