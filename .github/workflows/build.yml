@@ -67,7 +67,7 @@ jobs:
             -v "${{ github.workspace }}:/work" \
             -w /work \
             ${{ steps.meta.outputs.tags }} \
-            /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
+            /bin/bash -c "cmake -S . -B build && cmake --build build && cmake --build build --target gompeivision-deb"
 
       - name: List files for debugging
         run: ls -laR ./build
@@ -137,7 +137,7 @@ jobs:
             -v "${{ github.workspace }}:/work" \
             -w /work \
             ${{ steps.meta.outputs.tags }} \
-            /bin/bash -c "mkdir -p build && cd build && cmake .. && make"
+            /bin/bash -c "cmake -S . -B build && cmake --build build && cmake --build build --target gompeivision-deb"
 
       - name: List files for debugging
         run: ls -laR ./build
