@@ -42,7 +42,7 @@ int main(const int argc, char* argv[]) {
 
     // Each worker process must initialize its own NT client.
     auto nt_inst = wpi::nt::NetworkTableInstance::GetDefault();
-    nt_inst.StartClient4("GompeiVision-" + hardware_id);
+    nt_inst.StartClient("GompeiVision-" + hardware_id);
     nt_inst.SetServer("10.1.90.2");
 
     // Register signal handlers for graceful shutdown.
