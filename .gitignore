@@ -1,4 +1,9 @@
-.idea
-/*build*/
+.idea/
+.vscode/
+build*/
 /debs/
-/apt-cache/
+/apt-repo/
+compile_commands.json
+CMakeCache.txt
+CMakeFiles/
+*.deb
